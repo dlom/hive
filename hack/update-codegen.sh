@@ -20,7 +20,14 @@ cd "${SCRIPT_ROOT}"
 # NOTE: Keep Makefile's `verify-codegen` in sync with the paths in these commands (the second and third arg)
 ###
 
-GOFLAGS="" bash ${CODEGEN_PKG}/generate-groups.sh "deepcopy" \
+# GOFLAGS="" bash ${CODEGEN_PKG}/generate-groups.sh "deepcopy" \
+#  github.com/openshift/hive/pkg/client \
+#  github.com/openshift/hive/apis \
+#  "hive:v1 hiveinternal:v1alpha1" \
+#  --go-header-file ${SCRIPT_ROOT}/hack/boilerplate.go.txt \
+#  --trim-path-prefix github.com/openshift/hive
+
+GOFLAGS="" bash ${CODEGEN_PKG}/kube-codegen.sh "deepcopy" \
   github.com/openshift/hive/pkg/client \
   github.com/openshift/hive/apis \
   "hive:v1 hiveinternal:v1alpha1" \
