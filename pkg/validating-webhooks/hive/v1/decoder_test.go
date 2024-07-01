@@ -7,7 +7,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-func createDecoder(t *testing.T) *admission.Decoder {
+func createDecoder(t *testing.T) admission.Decoder {
 	scheme := scheme.GetScheme()
 	decoder := admission.NewDecoder(scheme)
 	return decoder

@@ -108,23 +108,23 @@ func AddToManager(mgr manager.Manager, r *ReconcileAWSPrivateLink, concurrentRec
 	}
 
 	// Watch for changes to ClusterDeployment
-	err = c.Watch(source.Kind(mgr.GetCache(), &hivev1.ClusterDeployment{}),
-		controllerutils.NewRateLimitedUpdateEventHandler(&handler.EnqueueRequestForObject{}, controllerutils.IsClusterDeploymentErrorUpdateEvent))
+	err = c.Watch(source.Kind[client.Object](mgr.GetCache(), &hivev1.ClusterDeployment{},
+		controllerutils.NewRateLimitedUpdateEventHandler(&handler.EnqueueRequestForObject{}, controllerutils.IsClusterDeploymentErrorUpdateEvent)))
 	if err != nil {
 		log.WithField("controller", ControllerName).WithError(err).Error("Error watching cluster deployment")
 		return err
 	}
 
 	// Watch for changes to ClusterProvision
-	if err := c.Watch(source.Kind(mgr.GetCache(), &hivev1.ClusterProvision{}),
-		handler.EnqueueRequestForOwner(mgr.GetScheme(), mgr.GetRESTMapper(), &hivev1.ClusterDeployment{}, handler.OnlyControllerOwner())); err != nil {
+	if err := c.Watch(source.Kind[client.Object](mgr.GetCache(), &hivev1.ClusterProvision{},
+		handler.EnqueueRequestForOwner(mgr.GetScheme(), mgr.GetRESTMapper(), &hivev1.ClusterDeployment{}, handler.OnlyControllerOwner()))); err != nil {
 		log.WithField("controller", ControllerName).WithError(err).Error("Error watching cluster provision")
 		return err
 	}
 
 	// Watch for changes to ClusterDeprovision
-	if err := c.Watch(source.Kind(mgr.GetCache(), &hivev1.ClusterDeprovision{}),
-		handler.EnqueueRequestForOwner(mgr.GetScheme(), mgr.GetRESTMapper(), &hivev1.ClusterDeployment{}, handler.OnlyControllerOwner())); err != nil {
+	if err := c.Watch(source.Kind[client.Object](mgr.GetCache(), &hivev1.ClusterDeprovision{},
+		handler.EnqueueRequestForOwner(mgr.GetScheme(), mgr.GetRESTMapper(), &hivev1.ClusterDeployment{}, handler.OnlyControllerOwner()))); err != nil {
 		log.WithField("controller", ControllerName).WithError(err).Error("Error watching cluster deprovision")
 		return err
 	}
