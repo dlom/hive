@@ -30,7 +30,7 @@ import (
 	"time"
 
 	// Using v4 to match upstream
-	jsonpatch "github.com/evanphx/json-patch"
+	jsonpatch "gopkg.in/evanphx/json-patch.v4"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	policyv1beta1 "k8s.io/api/policy/v1beta1"
@@ -423,9 +423,18 @@ func (t versionedTracker) update(gvr schema.GroupVersionResource, obj runtime.Ob
 
 	// If the new object does not have the resource version set and it allows unconditional update,
 	// default it to the resource version of the existing resource
-	if accessor.GetResourceVersion() == "" && allowsUnconditionalUpdate(gvk) {
-		accessor.SetResourceVersion(oldAccessor.GetResourceVersion())
+	if accessor.GetResourceVersion() == "" {
+		switch {
+		case allowsUnconditionalUpdate(gvk):
+			accessor.SetResourceVersion(oldAccessor.GetResourceVersion())
+		case bytes.
+			Contains(debug.Stack(), []byte("sigs.k8s.io/controller-runtime/pkg/client/fake.(*fakeClient).Patch")):
+			// We apply patches using a client-go reaction that ends up calling the trackers Update. As we can't change
+			// that reaction, we use the callstack to figure out if this originated from the "fakeClient.Patch" func.
+			accessor.SetResourceVersion(oldAccessor.GetResourceVersion())
+		}
 	}
+
 	if accessor.GetResourceVersion() != oldAccessor.GetResourceVersion() {
 		return apierrors.NewConflict(gvr.GroupResource(), accessor.GetName(), errors.New("object was modified"))
 	}
