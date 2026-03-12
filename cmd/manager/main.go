@@ -7,6 +7,7 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"strconv"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -170,11 +171,36 @@ func newRootCommand() *cobra.Command {
 
 				// Initialize shared client cache for all controllers
 				// This provides 92-97% faster remote cluster operations through client reuse
-				clientutil.InitializeSharedCache(
-					clientutil.WithMaxSize(500),
-					clientutil.WithTTL(10*time.Minute),
-				)
-				log.Info("Initialized shared client cache (max_size=500, ttl=10m)")
+				// Read configuration from environment variables (set by hive-operator from HiveConfig)
+				cacheOpts := []clientutil.CacheOption{}
+
+				// Default: 500 max entries
+				maxSize := 500
+				if envMaxSize := os.Getenv(constants.ClientCacheMaxSizeEnvVar); envMaxSize != "" {
+					if parsed, err := strconv.Atoi(envMaxSize); err == nil && parsed > 0 {
+						maxSize = parsed
+					} else {
+						log.WithError(err).WithField("value", envMaxSize).Warn("invalid CLIENT_CACHE_MAX_SIZE, using default 500")
+					}
+				}
+				cacheOpts = append(cacheOpts, clientutil.WithMaxSize(maxSize))
+
+				// Default: 10 minute TTL
+				cacheTTL := 10 * time.Minute
+				if envTTL := os.Getenv(constants.ClientCacheTTLEnvVar); envTTL != "" {
+					if parsed, err := time.ParseDuration(envTTL); err == nil && parsed > 0 {
+						cacheTTL = parsed
+					} else {
+						log.WithError(err).WithField("value", envTTL).Warn("invalid CLIENT_CACHE_TTL, using default 10m")
+					}
+				}
+				cacheOpts = append(cacheOpts, clientutil.WithTTL(cacheTTL))
+
+				clientutil.InitializeSharedCache(cacheOpts...)
+				log.WithFields(log.Fields{
+					"max_size": maxSize,
+					"ttl":      cacheTTL,
+				}).Info("Initialized shared client cache")
 
 				if err := utils.SetupAdditionalCA(); err != nil {
 					log.Fatal(err)

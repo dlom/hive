@@ -161,6 +161,22 @@ func (r *ReconcileHiveConfig) deployHive(hLog log.FieldLogger, h resource.Helper
 		hiveContainer.Env = append(hiveContainer.Env, clusterVersionPollIntervalEnvVar)
 	}
 
+	// Configure shared client cache settings
+	if cacheConfig := instance.Spec.ClientCacheConfig; cacheConfig != nil {
+		if cacheConfig.MaxSize != nil {
+			hiveContainer.Env = append(hiveContainer.Env, corev1.EnvVar{
+				Name:  constants.ClientCacheMaxSizeEnvVar,
+				Value: strconv.Itoa(int(*cacheConfig.MaxSize)),
+			})
+		}
+		if cacheConfig.TTL != nil {
+			hiveContainer.Env = append(hiveContainer.Env, corev1.EnvVar{
+				Name:  constants.ClientCacheTTLEnvVar,
+				Value: *cacheConfig.TTL,
+			})
+		}
+	}
+
 	addConfigVolume(&hiveDeployment.Spec.Template.Spec, managedDomainsConfigMapInfo, hiveContainer)
 	addConfigVolume(&hiveDeployment.Spec.Template.Spec, awsPrivateLinkConfigMapInfo, hiveContainer)
 	addConfigVolume(&hiveDeployment.Spec.Template.Spec, privateLinkConfigMapInfo, hiveContainer)

@@ -558,6 +558,16 @@ const (
 	// HiveConfig.Spec.ClusterVersionPollInterval from hive-operator through to the clusterversion controller.
 	ClusterVersionPollIntervalEnvVar = "CLUSTERVERSION_POLL_INTERVAL"
 
+	// ClientCacheMaxSizeEnvVar is an integer indicating the maximum number of remote cluster clients
+	// to cache. It is how we plumb HiveConfig.Spec.ClientCacheConfig.MaxSize from hive-operator
+	// through to the controller manager's shared client cache.
+	ClientCacheMaxSizeEnvVar = "CLIENT_CACHE_MAX_SIZE"
+
+	// ClientCacheTTLEnvVar is a Duration string indicating the maximum time a client will remain
+	// in the cache before being evicted. It is how we plumb HiveConfig.Spec.ClientCacheConfig.TTL
+	// from hive-operator through to the controller manager's shared client cache.
+	ClientCacheTTLEnvVar = "CLIENT_CACHE_TTL"
+
 	// SyncClusterVersionStatusAnnotation, if set to "true" on a ClusterDeployment, causes hive to copy the entire
 	// status section of the `clusterversion version` object from the spoke cluster into
 	// ClusterDeployment.Status.ClusterVersionStatus.

@@ -2,6 +2,7 @@ package hive
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -43,6 +44,22 @@ var (
 
 				container.Env = append(container.Env, syncsetReapplyIntervalEnvVar)
 			}
+
+			// Configure shared client cache settings
+			if cacheConfig := hiveconfig.Spec.ClientCacheConfig; cacheConfig != nil {
+				if cacheConfig.MaxSize != nil {
+					container.Env = append(container.Env, corev1.EnvVar{
+						Name:  constants.ClientCacheMaxSizeEnvVar,
+						Value: strconv.Itoa(int(*cacheConfig.MaxSize)),
+					})
+				}
+				if cacheConfig.TTL != nil {
+					container.Env = append(container.Env, corev1.EnvVar{
+						Name:  constants.ClientCacheTTLEnvVar,
+						Value: *cacheConfig.TTL,
+					})
+				}
+			}
 		},
 	}
 
@@ -65,6 +82,22 @@ var (
 					Name:  constants.HiveAWSServiceProviderCredentialsSecretRefEnvVar,
 					Value: awssp.CredentialsSecretRef.Name,
 				})
+			}
+
+			// Configure shared client cache settings
+			if cacheConfig := hc.Spec.ClientCacheConfig; cacheConfig != nil {
+				if cacheConfig.MaxSize != nil {
+					c.Env = append(c.Env, corev1.EnvVar{
+						Name:  constants.ClientCacheMaxSizeEnvVar,
+						Value: strconv.Itoa(int(*cacheConfig.MaxSize)),
+					})
+				}
+				if cacheConfig.TTL != nil {
+					c.Env = append(c.Env, corev1.EnvVar{
+						Name:  constants.ClientCacheTTLEnvVar,
+						Value: *cacheConfig.TTL,
+					})
+				}
 			}
 		},
 	}
