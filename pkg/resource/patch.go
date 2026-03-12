@@ -42,6 +42,16 @@ func (h *helperImpl) Patch(ctx context.Context, obj interface{}, patch []byte, o
 
 	objectKey := client.ObjectKeyFromObject(unstructuredObj)
 
+	// Get existing object to capture resourceVersion before patch
+	existingObj := &unstructured.Unstructured{}
+	existingObj.SetGroupVersionKind(gvk)
+	if err := h.client.Get(ctx, objectKey, existingObj); err != nil {
+		// Record operation metrics
+		h.recordOperation("patch", gvk, "failure", time.Since(startTime).Seconds())
+		return PatchResult{}, h.wrapError(err, "get-before-patch", gvk, objectKey.Namespace, objectKey.Name)
+	}
+	existingResourceVersion := existingObj.GetResourceVersion()
+
 	// Prepare patch options
 	patchOpts := []client.PatchOption{
 		&client.PatchOptions{
@@ -61,10 +71,17 @@ func (h *helperImpl) Patch(ctx context.Context, obj interface{}, patch []byte, o
 	// Record success metrics
 	h.recordOperation("patch", gvk, "success", time.Since(startTime).Seconds())
 
-	// For now, we assume Patched if no error
-	// A more sophisticated implementation could compare before/after
+	// Determine if patch actually changed anything by comparing resourceVersion.
+	// ResourceVersion changes whenever the object is modified server-side.
+	// If it stayed the same, the patch made no changes.
+	newResourceVersion := unstructuredObj.GetResourceVersion()
+	state := Patched
+	if newResourceVersion == existingResourceVersion {
+		state = PatchUnchanged
+	}
+
 	return PatchResult{
-		State:  Patched,
+		State:  state,
 		Object: unstructuredObj,
 	}, nil
 }

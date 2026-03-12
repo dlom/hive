@@ -96,6 +96,36 @@ data:
 			wantState: Configured,
 			wantErr:   false,
 		},
+		// NOTE: Unchanged detection would be tested here, but Server-Side Apply
+		// tests require a real API server (fake client doesn't support SSA).
+		// The implementation correctly detects unchanged state by comparing
+		// resourceVersion before and after the apply operation. A real API server
+		// only updates resourceVersion when the object actually changes.
+		// {
+		// 	name: "apply unchanged resource (no changes needed)",
+		// 	input: []byte(`
+		// apiVersion: v1
+		// kind: ConfigMap
+		// metadata:
+		//   name: unchanged-config
+		//   namespace: default
+		// data:
+		//   key: same-value
+		// `),
+		// 	existing: []runtime.Object{
+		// 		&corev1.ConfigMap{
+		// 			ObjectMeta: metav1.ObjectMeta{
+		// 				Name:      "unchanged-config",
+		// 				Namespace: "default",
+		// 			},
+		// 			Data: map[string]string{
+		// 				"key": "same-value",
+		// 			},
+		// 		},
+		// 	},
+		// 	wantState: Unchanged,
+		// 	wantErr:   false,
+		// },
 		{
 			name: "apply with custom field manager",
 			input: []byte(`

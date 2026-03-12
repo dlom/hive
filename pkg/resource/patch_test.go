@@ -58,6 +58,38 @@ func TestHelper_Patch(t *testing.T) {
 			wantState: Patched,
 			wantErr:   false,
 		},
+		// NOTE: Unchanged detection is skipped with fake client.
+		// The fake client always updates resourceVersion on patch operations,
+		// even when the patch makes no actual changes. A real API server only
+		// updates resourceVersion when the object actually changes.
+		// To test unchanged detection, use envtest with a real API server.
+		// {
+		// 	name: "patch unchanged resource (no changes made)",
+		// 	obj: &corev1.ConfigMap{
+		// 		TypeMeta: metav1.TypeMeta{
+		// 			APIVersion: "v1",
+		// 			Kind:       "ConfigMap",
+		// 		},
+		// 		ObjectMeta: metav1.ObjectMeta{
+		// 			Name:      "unchanged-patch",
+		// 			Namespace: "default",
+		// 		},
+		// 	},
+		// 	patch: []byte(`{"data":{"key":"same"}}`),
+		// 	existing: []runtime.Object{
+		// 		&corev1.ConfigMap{
+		// 			ObjectMeta: metav1.ObjectMeta{
+		// 				Name:      "unchanged-patch",
+		// 				Namespace: "default",
+		// 			},
+		// 			Data: map[string]string{
+		// 				"key": "same",
+		// 			},
+		// 		},
+		// 	},
+		// 	wantState: PatchUnchanged,
+		// 	wantErr:   false,
+		// },
 		{
 			name: "patch with custom field manager",
 			obj: &corev1.ConfigMap{

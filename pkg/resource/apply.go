@@ -53,6 +53,7 @@ func (h *helperImpl) Apply(ctx context.Context, obj interface{}, opts ...ApplyOp
 	objectKey := client.ObjectKeyFromObject(unstructuredObj)
 
 	exists := false
+	var existingResourceVersion string
 	if err := h.client.Get(ctx, objectKey, existingObj); err != nil {
 		if !apierrors.IsNotFound(err) {
 			return ApplyResult{}, h.wrapError(err, "get-existing", gvk, objectKey.Namespace, objectKey.Name)
@@ -60,6 +61,7 @@ func (h *helperImpl) Apply(ctx context.Context, obj interface{}, opts ...ApplyOp
 		// Not found - will be created
 	} else {
 		exists = true
+		existingResourceVersion = existingObj.GetResourceVersion()
 	}
 
 	// Prepare patch options
@@ -93,10 +95,15 @@ func (h *helperImpl) Apply(ctx context.Context, obj interface{}, opts ...ApplyOp
 	if !exists {
 		state = Created
 	} else {
-		// Check if anything actually changed by comparing generation or resourceVersion
-		// For now, we assume Configured if it existed
-		// A more sophisticated check would compare the objects
-		state = Configured
+		// Check if anything actually changed by comparing resourceVersion.
+		// ResourceVersion changes whenever the object is modified server-side.
+		// If it stayed the same, the apply made no changes.
+		newResourceVersion := unstructuredObj.GetResourceVersion()
+		if newResourceVersion == existingResourceVersion {
+			state = Unchanged
+		} else {
+			state = Configured
+		}
 	}
 
 	// Record success metrics
