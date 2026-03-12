@@ -230,7 +230,7 @@ func (r *ReconcileRemoteClusterIngress) Reconcile(ctx context.Context, request r
 
 	rContext.certBundleSecrets = certBundleSecrets
 
-	if err := r.syncClusterIngress(rContext); err != nil {
+	if err := r.syncClusterIngress(ctx, rContext); err != nil {
 		cdLog.Errorf("error syncing clusterIngress syncset: %v", err)
 		return reconcile.Result{}, err
 	}
@@ -245,7 +245,7 @@ func GenerateRemoteIngressSyncSetName(clusterDeploymentName string) string {
 
 // syncClusterIngress will create the syncSet with all the needed secrets and
 // ingressController objects to sync to the remote cluster
-func (r *ReconcileRemoteClusterIngress) syncClusterIngress(rContext *reconcileContext) error {
+func (r *ReconcileRemoteClusterIngress) syncClusterIngress(ctx context.Context, rContext *reconcileContext) error {
 	rContext.logger.Info("reconciling ClusterIngress for cluster deployment")
 
 	rawList, err := rawExtensionsFromClusterDeployment(rContext)
@@ -253,7 +253,7 @@ func (r *ReconcileRemoteClusterIngress) syncClusterIngress(rContext *reconcileCo
 		return err
 	}
 	secretMappings := secretMappingsFromClusterDeployment(rContext)
-	return r.syncSyncSet(rContext, rawList, secretMappings)
+	return r.syncSyncSet(ctx, rContext, rawList, secretMappings)
 }
 
 // rawExtensionsFromClusterDeployment will return the slice of runtime.RawExtension objects
@@ -321,7 +321,7 @@ func newSyncSetSpec(cd *hivev1.ClusterDeployment, rawExtensions []runtime.RawExt
 }
 
 // syncSyncSet builds up a syncSet object with the passed-in rawExtensions as the spec.Resources
-func (r *ReconcileRemoteClusterIngress) syncSyncSet(rContext *reconcileContext, rawExtensions []runtime.RawExtension, secretMappings []hivev1.SecretMapping) error {
+func (r *ReconcileRemoteClusterIngress) syncSyncSet(ctx context.Context, rContext *reconcileContext, rawExtensions []runtime.RawExtension, secretMappings []hivev1.SecretMapping) error {
 	ssName := GenerateRemoteIngressSyncSetName(rContext.clusterDeployment.Name)
 
 	newSyncSetSpec := newSyncSetSpec(rContext.clusterDeployment, rawExtensions, secretMappings)
@@ -348,7 +348,7 @@ func (r *ReconcileRemoteClusterIngress) syncSyncSet(rContext *reconcileContext, 
 	}
 
 	// Use Apply with context and structured results
-	if _, err := r.kubeCLI.Apply(context.TODO(), syncSet); err != nil {
+	if _, err := r.kubeCLI.Apply(ctx, syncSet); err != nil {
 		rContext.logger.WithError(err).Error("failed to apply syncset")
 		return err
 	}

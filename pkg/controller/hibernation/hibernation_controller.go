@@ -410,7 +410,7 @@ func (r *hibernationReconciler) Reconcile(ctx context.Context, request reconcile
 	if shouldStartMachines(cd, hibernatingCondition, readyCondition) {
 		return r.startMachines(cd, cdLog)
 	}
-	return r.checkClusterRunning(cd, syncSetsApplied, cdLog, readyCondition)
+	return r.checkClusterRunning(ctx, cd, syncSetsApplied, cdLog, readyCondition)
 }
 
 func (r *hibernationReconciler) startMachines(cd *hivev1.ClusterDeployment, logger log.FieldLogger) (reconcile.Result, error) {
@@ -522,7 +522,7 @@ func (r *hibernationReconciler) checkClusterStopped(cd *hivev1.ClusterDeployment
 	return reconcile.Result{}, nil
 }
 
-func (r *hibernationReconciler) checkClusterRunning(cd *hivev1.ClusterDeployment, syncSetsApplied bool, logger log.FieldLogger,
+func (r *hibernationReconciler) checkClusterRunning(ctx context.Context, cd *hivev1.ClusterDeployment, syncSetsApplied bool, logger log.FieldLogger,
 	readyCondition *hivev1.ClusterDeploymentCondition) (reconcile.Result, error) {
 	actuator := r.getActuator(cd)
 	if actuator == nil {
@@ -555,7 +555,7 @@ func (r *hibernationReconciler) checkClusterRunning(cd *hivev1.ClusterDeployment
 		return reconcile.Result{RequeueAfter: stateCheckInterval}, nil
 	}
 
-	remoteClient, err := r.remoteClientBuilder(cd).BuildWithContext(context.Background())
+	remoteClient, err := r.remoteClientBuilder(cd).BuildWithContext(ctx)
 	if err != nil {
 		logger.WithError(err).Log(controllerutils.LogLevel(err), "Failed to connect to target cluster")
 		// Special case: it's possible to get here when we're in StartingMachines state. But MachinesRunning
@@ -601,7 +601,7 @@ func (r *hibernationReconciler) checkClusterRunning(cd *hivev1.ClusterDeployment
 				return reconcile.Result{}, err
 			}
 		}
-		return r.checkCSRs(cd, remoteClient, logger)
+		return r.checkCSRs(ctx, cd, remoteClient, logger)
 	}
 
 	checkClusterOperators := true
@@ -819,19 +819,19 @@ func (r *hibernationReconciler) operatorsReady(remoteClient client.Client, logge
 	return success, nil
 }
 
-func (r *hibernationReconciler) checkCSRs(cd *hivev1.ClusterDeployment, remoteClient client.Client, logger log.FieldLogger) (reconcile.Result, error) {
-	kubeClient, err := r.remoteClientBuilder(cd).BuildKubeClientWithContext(context.Background())
+func (r *hibernationReconciler) checkCSRs(ctx context.Context, cd *hivev1.ClusterDeployment, remoteClient client.Client, logger log.FieldLogger) (reconcile.Result, error) {
+	kubeClient, err := r.remoteClientBuilder(cd).BuildKubeClientWithContext(ctx)
 	if err != nil {
 		logger.WithError(err).Log(controllerutils.LogLevel(err), "Failed to get kube client to target cluster")
 		return reconcile.Result{}, errors.Wrap(err, "failed to get kube client to target cluster")
 	}
 	machineList := &machineapi.MachineList{}
-	err = remoteClient.List(context.TODO(), machineList)
+	err = remoteClient.List(ctx, machineList)
 	if err != nil {
 		logger.WithError(err).Log(controllerutils.LogLevel(err), "Failed to list machines")
 		return reconcile.Result{}, errors.Wrap(err, "failed to list machines")
 	}
-	csrList, err := kubeClient.CertificatesV1().CertificateSigningRequests().List(context.TODO(), metav1.ListOptions{})
+	csrList, err := kubeClient.CertificatesV1().CertificateSigningRequests().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		logger.WithError(err).Log(controllerutils.LogLevel(err), "Failed to list CSRs")
 		return reconcile.Result{}, errors.Wrap(err, "failed to list CSRs")

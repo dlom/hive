@@ -263,10 +263,10 @@ func (r *ReconcileClusterRelocate) Reconcile(ctx context.Context, request reconc
 		return r.reconcileNoSingleMatch(cd, currentRelocateName, desiredRelocates, logger)
 	}
 
-	return r.reconcileSingleMatch(cd, relocateStatus, currentRelocateName, desiredRelocates[0], logger)
+	return r.reconcileSingleMatch(ctx, cd, relocateStatus, currentRelocateName, desiredRelocates[0], logger)
 }
 
-func (r *ReconcileClusterRelocate) reconcileSingleMatch(cd *hivev1.ClusterDeployment, oldRelocateStatus hivev1.RelocateStatus, oldRelocateName string, desiredRelocate *hivev1.ClusterRelocate, logger log.FieldLogger) (reconcile.Result, error) {
+func (r *ReconcileClusterRelocate) reconcileSingleMatch(ctx context.Context, cd *hivev1.ClusterDeployment, oldRelocateStatus hivev1.RelocateStatus, oldRelocateName string, desiredRelocate *hivev1.ClusterRelocate, logger log.FieldLogger) (reconcile.Result, error) {
 	// Abort an in-progress relocate when the ClusterDeployment matches a different ClusterRelocate
 	if oldRelocateStatus == hivev1.RelocateOutgoing && oldRelocateName != desiredRelocate.Name {
 		logger.WithField("currentClusterRelocate", oldRelocateName).
@@ -301,7 +301,7 @@ func (r *ReconcileClusterRelocate) reconcileSingleMatch(cd *hivev1.ClusterDeploy
 		return reconcile.Result{}, errors.Wrap(err, "failed to get kubeconfig secret")
 	}
 
-	destClient, err := r.remoteClusterAPIClientBuilder(kubeconfigSecret, ControllerName).BuildWithContext(context.Background())
+	destClient, err := r.remoteClusterAPIClientBuilder(kubeconfigSecret, ControllerName).BuildWithContext(ctx)
 	if err != nil {
 		logger.WithError(err).Warn("could not create a client for the destination cluster")
 		r.setRelocationFailedCondition(

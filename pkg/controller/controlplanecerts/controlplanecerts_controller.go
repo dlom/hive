@@ -229,7 +229,7 @@ func (r *ReconcileControlPlaneCerts) Reconcile(ctx context.Context, request reco
 	}
 
 	// Use Apply with context and structured results
-	_, err = r.applier.Apply(context.TODO(), desiredSyncSet)
+	_, err = r.applier.Apply(ctx, desiredSyncSet)
 	if err != nil {
 		cdLog.WithError(err).Error("failed to apply control plane certificates syncset")
 		return reconcile.Result{}, err
