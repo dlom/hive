@@ -90,8 +90,7 @@ var (
 
 // Field manager functions
 var (
-	FieldManagerName       = fieldmanager.FieldManagerName
-	FieldManagerNameLegacy = fieldmanager.FieldManagerNameLegacy
+	FieldManagerName = fieldmanager.FieldManagerName
 )
 
 // Config utilities

@@ -54,61 +54,6 @@ func TestFieldManagerName(t *testing.T) {
 	}
 }
 
-func TestFieldManagerNameLegacy(t *testing.T) {
-	tests := []struct {
-		name           string
-		controllerName hivev1.ControllerName
-		version        int
-		expected       string
-	}{
-		{
-			name:           "version 1 - controller utils",
-			controllerName: hivev1.ClustersyncControllerName,
-			version:        1,
-			expected:       "hive1-clustersync",
-		},
-		{
-			name:           "version 2 - remoteclient",
-			controllerName: hivev1.ClustersyncControllerName,
-			version:        2,
-			expected:       "hive2-clustersync",
-		},
-		{
-			name:           "version 4 - resource helper Create",
-			controllerName: hivev1.ClustersyncControllerName,
-			version:        4,
-			expected:       "hive4-clustersync",
-		},
-		{
-			name:           "version 5 - resource helper CreateOrUpdate",
-			controllerName: hivev1.ClustersyncControllerName,
-			version:        5,
-			expected:       "hive5-clustersync",
-		},
-		{
-			name:           "version 6 - resource helper Apply",
-			controllerName: hivev1.ClustersyncControllerName,
-			version:        6,
-			expected:       "hive6-clustersync",
-		},
-		{
-			name:           "version 7 - resource helper Patch",
-			controllerName: hivev1.ClustersyncControllerName,
-			version:        7,
-			expected:       "hive7-clustersync",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := FieldManagerNameLegacy(tt.controllerName, tt.version)
-			if got != tt.expected {
-				t.Errorf("FieldManagerNameLegacy() = %q, want %q", got, tt.expected)
-			}
-		})
-	}
-}
-
 func TestFieldManagerNameFormat(t *testing.T) {
 	// Verify the format is consistent and doesn't contain unexpected characters
 	controllerName := hivev1.ControllerName("test-controller")

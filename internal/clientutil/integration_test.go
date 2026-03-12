@@ -141,7 +141,7 @@ func TestIntegration_ErrorWrappingWithPredicates(t *testing.T) {
 func TestIntegration_FieldManagerConsistency(t *testing.T) {
 	controllerName := hivev1.ClustersyncControllerName
 
-	// Get unified field manager name
+	// Get field manager name
 	fieldManager := clientutil.FieldManagerName(controllerName)
 
 	expectedFormat := "hive-clustersync"
@@ -153,17 +153,6 @@ func TestIntegration_FieldManagerConsistency(t *testing.T) {
 	fieldManager2 := clientutil.FieldManagerName(controllerName)
 	if fieldManager != fieldManager2 {
 		t.Error("FieldManagerName() not consistent across calls")
-	}
-
-	// Compare with legacy names (should be different)
-	legacyV2 := clientutil.FieldManagerNameLegacy(controllerName, 2)
-	if fieldManager == legacyV2 {
-		t.Error("Unified name should differ from legacy v2 name")
-	}
-
-	expectedLegacy := "hive2-clustersync"
-	if legacyV2 != expectedLegacy {
-		t.Errorf("Legacy name = %q, want %q", legacyV2, expectedLegacy)
 	}
 }
 
