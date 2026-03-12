@@ -365,13 +365,13 @@ func TestHelper_DeleteStateSemanticsVsV1(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 	ctx := context.Background()
 
-	t.Run("v2 returns clear DeletionInProgress state", func(t *testing.T) {
-		// This tests the fix for the v1 bug where deletion state was ambiguous
+	t.Run("returns clear DeletionInProgress state", func(t *testing.T) {
+		// This tests the fix for the legacy bug where deletion state was ambiguous
 
 		deletionTimestamp := metav1.Now()
 		resourceWithFinalizer := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:              "v2-semantics-test",
+				Name:              "semantics-test",
 				Namespace:         "default",
 				DeletionTimestamp: &deletionTimestamp,
 				Finalizers:        []string{"blocking-finalizer"},
@@ -389,16 +389,16 @@ func TestHelper_DeleteStateSemanticsVsV1(t *testing.T) {
 			Kind:    "ConfigMap",
 		}
 
-		result, err := helper.Delete(ctx, gvk, "default", "v2-semantics-test")
+		result, err := helper.Delete(ctx, gvk, "default", "semantics-test")
 		require.NoError(t, err)
 
-		// v2 explicitly returns DeletionInProgress (not ambiguous false)
-		assert.Equal(t, DeletionInProgress, result.State, "v2 should return explicit DeletionInProgress state")
+		// Explicitly returns DeletionInProgress (not ambiguous false)
+		assert.Equal(t, DeletionInProgress, result.State, "should return explicit DeletionInProgress state")
 		assert.NotNil(t, result.DeletionTimestamp, "should include deletion timestamp")
 		assert.NotNil(t, result.Object, "should include object for inspection")
 	})
 
-	t.Run("v2 distinguishes NotFound from Deleted", func(t *testing.T) {
+	t.Run("distinguishes NotFound from Deleted", func(t *testing.T) {
 		helper, err := NewHelper(logger,
 			WithClient(newFakeClient()),
 			WithControllerName(hivev1.ClustersyncControllerName),
@@ -414,8 +414,8 @@ func TestHelper_DeleteStateSemanticsVsV1(t *testing.T) {
 		result, err := helper.Delete(ctx, gvk, "default", "never-existed")
 		require.NoError(t, err)
 
-		// v2 explicitly returns NotFound (not Deleted)
-		assert.Equal(t, NotFound, result.State, "v2 should distinguish NotFound from Deleted")
+		// Explicitly returns NotFound (not Deleted)
+		assert.Equal(t, NotFound, result.State, "should distinguish NotFound from Deleted")
 	})
 }
 

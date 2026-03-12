@@ -12,7 +12,7 @@ import (
 )
 
 // Delete deletes the specified resource with clear deletion semantics.
-// This fixes the v1 deletion timing bug where DeletionInProgress was ambiguous.
+// This fixes the legacy deletion timing bug where DeletionInProgress was ambiguous.
 //
 // Returns clear states:
 //   - Deleted: Successfully deleted or already gone (idempotent success)

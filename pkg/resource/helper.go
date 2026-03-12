@@ -16,16 +16,16 @@ import (
 //go:generate mockgen -source=./helper.go -destination=./mock/helper_generated.go -package=mock
 
 // Helper provides context-aware resource operations using Server-Side Apply.
-// It replaces the kubectl-dependent Helper interface with native Kubernetes client APIs.
+// It uses native Kubernetes client APIs for all operations.
 //
-// Key improvements over v1:
+// Key features:
 //   - Context support for timeout and cancellation
-//   - Structured result types instead of strings
+//   - Structured result types (Created, Configured, Unchanged, etc.)
 //   - Server-Side Apply (no kubectl dependency, no OpenAPI schema overhead)
-//   - Unified Apply method (no separate Create/CreateOrUpdate/Apply variants)
-//   - Fixed deletion semantics (clear DeletionInProgress state)
-//   - No os.Args global mutation
-//   - Immutable field manager via clientutil
+//   - Unified Apply method for all resource types
+//   - Clear deletion semantics with DeletionInProgress state
+//   - Thread-safe field manager naming via clientutil
+//   - No global state mutation
 type Helper interface {
 	// Apply applies the given resource using Server-Side Apply.
 	// Accepts both []byte (YAML/JSON) and runtime.Object.
@@ -57,7 +57,7 @@ type Helper interface {
 	Delete(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, opts ...DeleteOption) (DeleteResult, error)
 }
 
-// helperConfig holds the configuration for a v2 helper.
+// helperConfig holds the configuration for a Helper.
 type helperConfig struct {
 	client         client.Client
 	restConfig     *rest.Config
@@ -99,7 +99,7 @@ type helperImpl struct {
 	controllerName hivev1.ControllerName
 }
 
-// NewHelper creates a new v2 helper with Server-Side Apply support.
+// NewHelper creates a new helper with Server-Side Apply support.
 //
 // Example usage:
 //

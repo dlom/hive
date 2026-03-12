@@ -15,7 +15,7 @@ type fakeHelper struct {
 	logger log.FieldLogger
 }
 
-// NewFakeHelper returns a new fake v2 helper that does not actually communicate with the cluster.
+// NewFakeHelper returns a new fake helper that does not actually communicate with the cluster.
 func NewFakeHelper(logger log.FieldLogger) Helper {
 	return &fakeHelper{
 		logger: logger,

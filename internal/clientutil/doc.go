@@ -31,7 +31,7 @@
 //	    clientutil.WithTTL(10*time.Minute),
 //	)
 //
-//	builder := remoteclient.NewBuilderV2(
+//	builder := remoteclient.NewBuilderWithOptions(
 //	    remoteclient.WithClusterDeployment(client, cd),
 //	    remoteclient.WithCache(cache),
 //	)
@@ -95,8 +95,8 @@
 // # Integration with Packages
 //
 // This package is used by:
-//   - pkg/remoteclient v2: Client creation and caching
-//   - pkg/resource v2: Resource operations (Apply, Patch, Delete)
+//   - pkg/remoteclient: Client creation and caching
+//   - pkg/resource: Resource operations (Apply, Patch, Delete)
 //   - All Hive controllers: Shared cache and consistent naming
 //
 // See individual subpackage documentation for detailed API reference.

@@ -60,8 +60,8 @@ cache := clientutil.NewCache(
     clientutil.WithTTL(10*time.Minute),
 )
 
-// Use with remote client v2
-builder := remoteclient.NewBuilderV2(
+// Use with remote client builder
+builder := remoteclient.NewBuilderWithOptions(
     remoteclient.WithClusterDeployment(client, cd),
     remoteclient.WithCache(cache),
 )
@@ -180,7 +180,7 @@ All tests pass with race detector enabled.
 
 ## Integration with Other Packages
 
-### pkg/remoteclient v2
+### pkg/remoteclient
 
 Uses clientutil for:
 - Client caching with automatic invalidation
@@ -189,7 +189,7 @@ Uses clientutil for:
 - Field manager naming
 - Error wrapping
 
-### pkg/resource v2
+### pkg/resource
 
 Uses clientutil for:
 - REST config handling
@@ -245,15 +245,15 @@ This package fixes several critical bugs:
 
 ## Migration Guide
 
-### For Controllers
+### For Controllers (Caching)
 
-**Before (v1):**
+**Without caching:**
 ```go
 builder := remoteclient.NewBuilder(client, cd, controllerName)
-remoteClient, err := builder.Build()
+remoteClient, err := builder.BuildWithContext(ctx)
 ```
 
-**After (v2 with caching):**
+**With caching (recommended for production):**
 ```go
 // One-time setup
 cache := clientutil.NewCache(
@@ -262,7 +262,7 @@ cache := clientutil.NewCache(
 )
 
 // Per reconciliation
-builder := remoteclient.NewBuilderV2(
+builder := remoteclient.NewBuilderWithOptions(
     remoteclient.WithClusterDeployment(client, cd),
     remoteclient.WithControllerName(controllerName),
     remoteclient.WithCache(cache),
@@ -276,15 +276,12 @@ remoteClient, err := builder.BuildWithContext(ctx)
 
 ### For Resource Operations
 
-**Before (v1):**
+**Using structured results:**
 ```go
-helper, err := resource.NewHelper(...)
-result, err := helper.Apply(objYAML)  // "created", "configured", "unchanged"
-```
+helper, err := resource.NewHelper(logger,
+    resource.WithClient(remoteClient),
+    resource.WithControllerName(controllerName))
 
-**After (v2):**
-```go
-helper, err := resource.NewHelperV2(...)
 result, err := helper.Apply(ctx, objYAML)
 
 switch result.State {
