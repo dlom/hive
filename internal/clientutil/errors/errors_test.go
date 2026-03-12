@@ -168,9 +168,9 @@ func TestWrapClusterError(t *testing.T) {
 
 func TestAsClusterError(t *testing.T) {
 	tests := []struct {
-		name    string
-		err     error
-		wantOk  bool
+		name   string
+		err    error
+		wantOk bool
 	}{
 		{
 			name:   "nil error",
@@ -249,12 +249,12 @@ func TestErrorChaining(t *testing.T) {
 
 func TestErrorPredicate_ContextErrors(t *testing.T) {
 	tests := []struct {
-		name          string
-		err           error
-		isTimeout     bool
-		isCanceled    bool
-		isConnection  bool
-		isAuth        bool
+		name         string
+		err          error
+		isTimeout    bool
+		isCanceled   bool
+		isConnection bool
+		isAuth       bool
 	}{
 		{
 			name:       "context deadline exceeded",

@@ -87,11 +87,11 @@ var (
 
 // Config utilities
 var (
-	CopyConfigWithMetrics   = config.CopyConfigWithMetrics
-	PrepareConfigForClient  = config.PrepareConfigForClient
-	ConfigEquals            = config.ConfigEquals
-	IsTransportWrapped      = config.IsTransportWrapped
-	GetHTTPClient           = config.GetHTTPClient
+	CopyConfigWithMetrics  = config.CopyConfigWithMetrics
+	PrepareConfigForClient = config.PrepareConfigForClient
+	ConfigEquals           = config.ConfigEquals
+	IsTransportWrapped     = config.IsTransportWrapped
+	GetHTTPClient          = config.GetHTTPClient
 )
 
 // Metrics functions

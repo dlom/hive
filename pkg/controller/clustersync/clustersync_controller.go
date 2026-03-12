@@ -847,6 +847,12 @@ func (r *ReconcileClusterSync) applySecretV2(
 		}
 		// Use the namespace of the SyncSet if the namespace of the source secret is omitted.
 		srcNamespace = syncSetNamespace
+	} else {
+		// If the namespace of the source secret is specified, then it must match the namespace of the SyncSet.
+		if syncSetNamespace != "" && syncSetNamespace != srcNamespace {
+			logger.Warn("source secret must be in same namespace as SyncSet")
+			return fmt.Errorf("source in wrong namespace for secret %d", secretIndex), false
+		}
 	}
 
 	secretName := secretMapping.SourceRef.Name

@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -160,9 +160,9 @@ func TestHelperV2_Patch(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "fail on invalid object type",
-			obj:  "invalid-type",
-			patch: []byte(`{"data":{"key":"value"}}`),
+			name:    "fail on invalid object type",
+			obj:     "invalid-type",
+			patch:   []byte(`{"data":{"key":"value"}}`),
 			wantErr: true,
 			errCheck: func(t *testing.T, err error) {
 				assert.Contains(t, err.Error(), "unsupported object type")

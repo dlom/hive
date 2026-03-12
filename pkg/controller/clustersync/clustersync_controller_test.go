@@ -92,7 +92,7 @@ func newReconcileTest(mockCtrl *gomock.Controller, existing ...runtime.Object) *
 		Client:          c,
 		logger:          logger,
 		reapplyInterval: defaultReapplyInterval,
-		resourceHelperBuilder: func(ctx context.Context, 
+		resourceHelperBuilder: func(ctx context.Context,
 			cd *hivev1.ClusterDeployment,
 			remoteClusterAPIClientBuilderFunc func(cd *hivev1.ClusterDeployment) remoteclient.Builder,
 			_ log.FieldLogger,
@@ -447,13 +447,13 @@ func TestReconcileClusterSync_ApplyPatch(t *testing.T) {
 				var existing []runtime.Object = []runtime.Object{cdBuilder(scheme).Build(), clusterSyncBuilder(scheme).Build(), teststatefulset.FullBuilder("hive", stsName, scheme).Build(teststatefulset.WithCurrentReplicas(3), teststatefulset.WithReplicas(3)), syncSet}
 				return newReconcileTest(mockCtrl, existing...)
 			}()
-			rt.mockResourceHelper.EXPECT().Patch(gomock.Any(), 
-				types.NamespacedName{Namespace: "dest-namespace", Name: "dest-name"},
-				"ConfigMap",
-				"v1",
+			rt.mockResourceHelper.EXPECT().PatchWithObject(gomock.Any(),
+				schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"},
+				"dest-namespace",
+				"dest-name",
 				[]byte("test-patch"),
-				"patch-type",
-			).Return(nil)
+				gomock.Any(),
+			).Return(resource.PatchResultV2{State: resource.PatchedV2}, nil)
 			rt.expectedSyncSetStatuses = append(rt.expectedSyncSetStatuses, buildSyncStatus("test-syncset"))
 			rt.run(t)
 		})
@@ -512,13 +512,13 @@ func TestReconcileClusterSync_ApplyAllTypes(t *testing.T) {
 			)
 			rt.mockResourceHelper.EXPECT().Apply(gomock.Any(), newApplyMatcher(resourceToApply)).Return(resource.ApplyResultV2{State: resource.CreatedV2}, nil)
 			rt.mockResourceHelper.EXPECT().Apply(gomock.Any(), newApplyMatcher(secretToApply)).Return(resource.ApplyResultV2{State: resource.CreatedV2}, nil)
-			rt.mockResourceHelper.EXPECT().Patch(gomock.Any(), 
-				types.NamespacedName{Namespace: "patch-namespace", Name: "patch-name"},
-				"PatchKind",
-				"patch-api/v1",
+			rt.mockResourceHelper.EXPECT().PatchWithObject(gomock.Any(),
+				schema.GroupVersionKind{Group: "patch-api", Version: "v1", Kind: "PatchKind"},
+				"patch-namespace",
+				"patch-name",
 				[]byte("test-patch"),
-				"patch-type",
-			).Return(nil)
+				gomock.Any(),
+			).Return(resource.PatchResultV2{State: resource.PatchedV2}, nil)
 			expectedSyncStatusBuilder := newSyncStatusBuilder("test-syncset")
 			if tc.includeResourcesToDelete {
 				expectedSyncStatusBuilder = expectedSyncStatusBuilder.Options(
@@ -665,8 +665,8 @@ func TestReconcileClusterSync_SyncSetRenamed(t *testing.T) {
 
 	// Configmap managed by original syncset is deleted
 	deleteCall := rt.mockResourceHelper.EXPECT().
-		Delete("v1", "ConfigMap", "dest-namespace", "dest-name").
-		Return(nil)
+		Delete(gomock.Any(), schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"}, "dest-namespace", "dest-name").
+		Return(resource.DeleteResultV2{State: resource.DeletedV2}, nil)
 
 	// Configmap managed by renamed syncset is applied
 	rt.mockResourceHelper.EXPECT().
@@ -721,8 +721,8 @@ func TestReconcileClusterSync_SyncSetDeleted(t *testing.T) {
 			}()
 			if tc.expectDelete {
 				rt.mockResourceHelper.EXPECT().
-					Delete("v1", "ConfigMap", "dest-namespace", "dest-name").
-					Return(nil)
+					Delete(gomock.Any(), schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"}, "dest-namespace", "dest-name").
+					Return(resource.DeleteResultV2{State: resource.DeletedV2}, nil)
 			}
 			rt.expectUnchangedLeaseRenewTime = true
 			rt.run(t)
@@ -798,8 +798,8 @@ func TestReconcileClusterSync_ResourceRemovedFromSyncSet(t *testing.T) {
 			rt.mockResourceHelper.EXPECT().Apply(gomock.Any(), newApplyMatcher(resourceToApply2)).Return(resource.ApplyResultV2{State: resource.CreatedV2}, nil)
 			if tc.expectDelete {
 				rt.mockResourceHelper.EXPECT().
-					Delete("v1", "ConfigMap", "dest-namespace", "deleted-resource").
-					Return(nil)
+					Delete(gomock.Any(), schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"}, "dest-namespace", "deleted-resource").
+					Return(resource.DeleteResultV2{State: resource.DeletedV2}, nil)
 			}
 			expectedSyncStatusBuilder := newSyncStatusBuilder("test-syncset").Options(
 				withObservedGeneration(2),
@@ -925,13 +925,13 @@ func TestReconcileClusterSync_ErrorApplyingPatch(t *testing.T) {
 		var existing []runtime.Object = []runtime.Object{cdBuilder(scheme).Build(), clusterSyncBuilder(scheme).Build(), teststatefulset.FullBuilder("hive", stsName, scheme).Build(teststatefulset.WithCurrentReplicas(3), teststatefulset.WithReplicas(3)), syncSet}
 		return newReconcileTest(mockCtrl, existing...)
 	}()
-	rt.mockResourceHelper.EXPECT().Patch(gomock.Any(), 
-		types.NamespacedName{Namespace: "dest-namespace", Name: "dest-name"},
-		"ConfigMap",
-		"v1",
+	rt.mockResourceHelper.EXPECT().PatchWithObject(gomock.Any(),
+		schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"},
+		"dest-namespace",
+		"dest-name",
 		[]byte("test-patch"),
-		"patch-type",
-	).Return(errors.New("test patch error"))
+		gomock.Any(),
+	).Return(resource.PatchResultV2{}, errors.New("test patch error"))
 	rt.expectedFailedMessage = "SyncSet test-syncset is failing"
 	rt.expectedSyncSetStatuses = []hiveintv1alpha1.SyncStatus{buildSyncStatus("test-syncset",
 		withFailureResult("failed to apply patch 0: test patch error"),
@@ -1094,25 +1094,27 @@ func TestReconcileClusterSync_SkipAfterFailingResource(t *testing.T) {
 			}
 			for i := 0; i < tc.successfulPatches; i++ {
 				patch := patchesToApply[i]
+				gvk := parseAPIVersion(patch.APIVersion, patch.Kind)
 				resourceHelperCalls = append(resourceHelperCalls,
-					rt.mockResourceHelper.EXPECT().Patch(gomock.Any(), 
-						types.NamespacedName{Namespace: patch.Namespace, Name: patch.Name},
-						patch.Kind,
-						patch.APIVersion,
+					rt.mockResourceHelper.EXPECT().PatchWithObject(gomock.Any(),
+						gvk,
+						patch.Namespace,
+						patch.Name,
 						[]byte(patch.Patch),
-						patch.PatchType,
-					).Return(nil))
+						gomock.Any(),
+					).Return(resource.PatchResultV2{State: resource.PatchedV2}, nil))
 			}
 			if tc.successfulResources == len(resourcesToApply) && tc.successfulSecrets == len(secretsToApply) && tc.successfulPatches < len(patchesToApply) {
 				patch := patchesToApply[tc.successfulPatches]
+				gvk := parseAPIVersion(patch.APIVersion, patch.Kind)
 				resourceHelperCalls = append(resourceHelperCalls,
-					rt.mockResourceHelper.EXPECT().Patch(gomock.Any(), 
-						types.NamespacedName{Namespace: patch.Namespace, Name: patch.Name},
-						patch.Kind,
-						patch.APIVersion,
+					rt.mockResourceHelper.EXPECT().PatchWithObject(gomock.Any(),
+						gvk,
+						patch.Namespace,
+						patch.Name,
 						[]byte(patch.Patch),
-						patch.PatchType,
-					).Return(errors.New("test patch error")))
+						gomock.Any(),
+					).Return(resource.PatchResultV2{}, errors.New("test patch error")))
 			}
 			gomock.InOrder(resourceHelperCalls...)
 			rt.expectedFailedMessage = "SyncSet test-syncset is failing"
@@ -1223,12 +1225,12 @@ func TestReconcileClusterSync_ResourcesToDeleteAreOrdered(t *testing.T) {
 							Return(resource.ApplyResultV2{State: resource.CreatedV2}, nil))
 				}
 				resourceHelperCalls = append(resourceHelperCalls,
-					rt.mockResourceHelper.EXPECT().Delete(gomock.Any(), "v1", "ConfigMap", "namespace-A", "resource-failing-to-delete-A").
-						Return(errors.New("error deleting resource")),
-					rt.mockResourceHelper.EXPECT().Delete(gomock.Any(), "v1", "ConfigMap", "namespace-A", "resource-failing-to-delete-B").
-						Return(errors.New("error deleting resource")),
-					rt.mockResourceHelper.EXPECT().Delete(gomock.Any(), "v1", "ConfigMap", "namespace-B", "resource-failing-to-delete-A").
-						Return(errors.New("error deleting resource")),
+					rt.mockResourceHelper.EXPECT().Delete(gomock.Any(), schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"}, "namespace-A", "resource-failing-to-delete-A").
+						Return(resource.DeleteResultV2{}, errors.New("error deleting resource")),
+					rt.mockResourceHelper.EXPECT().Delete(gomock.Any(), schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"}, "namespace-A", "resource-failing-to-delete-B").
+						Return(resource.DeleteResultV2{}, errors.New("error deleting resource")),
+					rt.mockResourceHelper.EXPECT().Delete(gomock.Any(), schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"}, "namespace-B", "resource-failing-to-delete-A").
+						Return(resource.DeleteResultV2{}, errors.New("error deleting resource")),
 				)
 				gomock.InOrder(resourceHelperCalls...)
 				rt.expectedFailedMessage = "SyncSet test-syncset is failing"
@@ -1508,8 +1510,8 @@ func TestReconcileClusterSync_ErrorDeleting(t *testing.T) {
 		return newReconcileTest(mockCtrl, existing...)
 	}()
 	rt.mockResourceHelper.EXPECT().
-		Delete("v1", "ConfigMap", "dest-namespace", "dest-name").
-		Return(errors.New("error deleting resource"))
+		Delete(gomock.Any(), schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"}, "dest-namespace", "dest-name").
+		Return(resource.DeleteResultV2{}, errors.New("error deleting resource"))
 	rt.expectedFailedMessage = "SyncSet test-syncset is failing"
 	rt.expectedSyncSetStatuses = []hiveintv1alpha1.SyncStatus{buildSyncStatus("test-syncset",
 		withObservedGeneration(0),
@@ -1569,11 +1571,11 @@ func TestReconcileClusterSync_DeleteErrorDoesNotBlockOtherDeletes(t *testing.T) 
 			}
 			rt := newReconcileTest(mockCtrl, existing...)
 			rt.mockResourceHelper.EXPECT().
-				Delete("v1", "ConfigMap", "dest-namespace", "failing-resource").
-				Return(errors.New("error deleting resource"))
+				Delete(gomock.Any(), schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"}, "dest-namespace", "failing-resource").
+				Return(resource.DeleteResultV2{}, errors.New("error deleting resource"))
 			rt.mockResourceHelper.EXPECT().
-				Delete("v1", "ConfigMap", "dest-namespace", "successful-resource").
-				Return(nil)
+				Delete(gomock.Any(), schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"}, "dest-namespace", "successful-resource").
+				Return(resource.DeleteResultV2{State: resource.DeletedV2}, nil)
 			rt.expectedFailedMessage = "SyncSet test-syncset is failing"
 			expectedSyncSetStatusBuilder := newSyncStatusBuilder("test-syncset").Options(
 				withFailureResult("failed to delete v1, Kind=ConfigMap dest-namespace/failing-resource: error deleting resource"),
@@ -1656,13 +1658,13 @@ func TestReconcileClusterSync_ApplyBehavior(t *testing.T) {
 				rt.mockResourceHelper.EXPECT().Apply(gomock.Any(), newApplyMatcher(resourceToApply)).Return(resource.ApplyResultV2{State: resource.CreatedV2}, nil)
 				rt.mockResourceHelper.EXPECT().Apply(gomock.Any(), newApplyMatcher(secretToApply)).Return(resource.ApplyResultV2{State: resource.CreatedV2}, nil)
 			}
-			rt.mockResourceHelper.EXPECT().Patch(gomock.Any(), 
-				types.NamespacedName{Namespace: "patch-namespace", Name: "patch-name"},
-				"PatchKind",
-				"patch-api/v1",
+			rt.mockResourceHelper.EXPECT().PatchWithObject(gomock.Any(),
+				schema.GroupVersionKind{Group: "patch-api", Version: "v1", Kind: "PatchKind"},
+				"patch-namespace",
+				"patch-name",
 				[]byte("test-patch"),
-				"patch-type",
-			).Return(nil)
+				gomock.Any(),
+			).Return(resource.PatchResultV2{State: resource.PatchedV2}, nil)
 			rt.expectedSyncSetStatuses = []hiveintv1alpha1.SyncStatus{buildSyncStatus("test-syncset")}
 			rt.run(t)
 		})
@@ -1844,7 +1846,7 @@ func TestReconcileClusterSync_MissingSourceSecret(t *testing.T) {
 	}()
 	rt.expectedFailedMessage = "SyncSet test-syncset is failing"
 	rt.expectedSyncSetStatuses = []hiveintv1alpha1.SyncStatus{buildSyncStatus("test-syncset",
-		withFailureResult(`failed to read secret 0: secrets "test-secret" not found`),
+		withFailureResult(`failed to retrieve secret test-namespace/test-secret: secrets "test-secret" not found`),
 		withNoFirstSuccessTime(),
 	)}
 	rt.expectRequeue = true
@@ -2248,15 +2250,13 @@ spec:
 					syncSet}
 				return newReconcileTest(mockCtrl, existing...)
 			}()
-			rt.mockResourceHelper.EXPECT().Apply(gomock.Any(), 
+			rt.mockResourceHelper.EXPECT().Apply(gomock.Any(),
 				newYamlApplyMatcher(t, tc.expectedResourceApplied)).Return(resource.ApplyResultV2{State: resource.CreatedV2}, nil)
-			rt.mockResourceHelper.EXPECT().Patch(gomock.Any(), 
-				types.NamespacedName{Namespace: "default", Name: "mycm"},
-				"ConfigMap",
-				"v1",
+			rt.mockResourceHelper.EXPECT().PatchWithObject(gomock.Any(), schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"},
+				"default", "mycm",
 				newByteMatcher(tc.expectedPatchApplied),
-				"").
-				Return(nil)
+				gomock.Any()).
+				Return(resource.PatchResultV2{State: resource.PatchedV2}, nil)
 			expectedSyncStatusBuilder := newSyncStatusBuilder("test-syncset")
 			rt.expectedSyncSetStatuses = []hiveintv1alpha1.SyncStatus{expectedSyncStatusBuilder.Build()}
 			rt.run(t)
@@ -2315,7 +2315,7 @@ func TestReconcileClusterSync_ApiVersionChange(t *testing.T) {
 		}
 		return newReconcileTest(mockCtrl, existing...)
 	}()
-	rt.mockResourceHelper.EXPECT().Apply(gomock.Any(), 
+	rt.mockResourceHelper.EXPECT().Apply(gomock.Any(),
 		newUnstructuredApplyMatcher(*new)).Return(resource.ApplyResultV2{State: resource.CreatedV2}, nil)
 
 	resourcesToDelete := []hiveintv1alpha1.SyncResourceReference{
@@ -2443,12 +2443,25 @@ func newUnstructuredApplyMatcher(u unstructured.Unstructured) gomock.Matcher {
 }
 
 func (m *applyMatcher) Matches(x any) bool {
-	rawData, ok := x.([]byte)
-	if !ok {
-		return false
-	}
-	u := &unstructured.Unstructured{}
-	if err := json.Unmarshal(rawData, u); err != nil {
+	var u *unstructured.Unstructured
+	switch v := x.(type) {
+	case []byte:
+		// V1 API passed bytes
+		u = &unstructured.Unstructured{}
+		if err := json.Unmarshal(v, u); err != nil {
+			return false
+		}
+	case *unstructured.Unstructured:
+		// V2 API passes unstructured directly
+		u = v
+	case runtime.Object:
+		// V2 API can pass any runtime.Object
+		objMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(v)
+		if err != nil {
+			return false
+		}
+		u = &unstructured.Unstructured{Object: objMap}
+	default:
 		return false
 	}
 	return reflect.DeepEqual(u, m.resource)
@@ -2496,8 +2509,25 @@ func newYamlApplyMatcher(t *testing.T, yamlString string) gomock.Matcher {
 // Matches implements gomock.Matcher for yamlApplyMatcher such that, when a mismatch occurs,
 // the delta is emitted as a JSON patch string, allowing quick and easy visualization.
 func (m *yamlApplyMatcher) Matches(x any) bool {
-	bytes, ok := x.([]byte)
-	assert.True(m.t, ok, "Unexpectedly got %T instead of []byte", x)
+	var bytes []byte
+	switch v := x.(type) {
+	case []byte:
+		// V1 API passed bytes
+		bytes = v
+	case *unstructured.Unstructured:
+		// V2 API passes unstructured directly
+		var err error
+		bytes, err = json.Marshal(v)
+		assert.NoError(m.t, err, "Failed to marshal unstructured to JSON")
+	case runtime.Object:
+		// V2 API can pass any runtime.Object
+		var err error
+		bytes, err = json.Marshal(v)
+		assert.NoError(m.t, err, "Failed to marshal runtime.Object to JSON")
+	default:
+		assert.Fail(m.t, "Unexpectedly got %T instead of []byte or runtime.Object", x)
+		return false
+	}
 	diff, err := jsonpatch.CreateMergePatch(m.want, bytes)
 	assert.NoError(m.t, err, "Failed to generate merge patch from got\n%s\nto want\n%s", bytes, m.want)
 	diffString := string(diff)
@@ -2641,4 +2671,13 @@ func testUnstructuredToRef(u *unstructured.Unstructured) hiveintv1alpha1.SyncRes
 		Namespace:  u.GetNamespace(),
 		Name:       u.GetName(),
 	}
+}
+
+func parseAPIVersion(apiVersion, kind string) schema.GroupVersionKind {
+	gv, err := schema.ParseGroupVersion(apiVersion)
+	if err != nil {
+		// Fallback for invalid format
+		return schema.GroupVersionKind{Version: apiVersion, Kind: kind}
+	}
+	return gv.WithKind(kind)
 }
