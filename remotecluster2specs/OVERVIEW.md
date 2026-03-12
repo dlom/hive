@@ -83,7 +83,6 @@ Controllers
     └── internal/clientutil (shared infrastructure)
         ├── Client cache (LRU + TTL)
         ├── REST config utilities (immutable)
-        ├── Discovery management (in-memory)
         ├── Field manager naming (unified)
         ├── Error types (typed predicates)
         └── Metrics infrastructure
@@ -95,7 +94,7 @@ Benefits: No leaks, caching, <500ms ops, thread-safe, consistent field managers
 
 | Package | Scope | Key Responsibilities |
 |---------|-------|---------------------|
-| **internal/clientutil** | Shared infrastructure | • Client cache (LRU, TTL, health checks)<br>• REST config utilities (immutable)<br>• Discovery client management<br>• Field manager naming `FieldManagerName()`<br>• Error types (ClusterError)<br>• Metrics (transport wrapper, cache, ops) |
+| **internal/clientutil** | Shared infrastructure | • Client cache (LRU, TTL, health checks)<br>• REST config utilities (immutable)<br>• Field manager naming `FieldManagerName()`<br>• Error types (ClusterError)<br>• Metrics (transport wrapper, cache, ops) |
 | **pkg/resource v2** | Resource operations | • Apply (Server-Side Apply)<br>• Patch (all types: SSA, strategic, merge, JSON)<br>• Delete (clear state semantics)<br>• Context-first API<br>• Operation-specific errors |
 | **pkg/remoteclient v2** | Client creation | • Build clients (controller-runtime, dynamic, typed)<br>• Kubeconfig loading from secrets<br>• API URL management (primary/secondary)<br>• Reachability checking<br>• Cache invalidation on cert rotation/failover |
 
@@ -120,12 +119,6 @@ Benefits: No leaks, caching, <500ms ops, thread-safe, consistent field managers
 - Prevents wrapper accumulation bug
 - Guarantees immutability
 
-**Discovery Client Management:**
-- In-memory caching (no disk I/O)
-- Shared across clients for same cluster
-- Invalidation on cluster unreachable
-- Integration with health checks
-
 **Field Manager Naming:**
 - `FieldManagerName(controllerName)` → `"hive-{controller}"`
 - Single source of truth
@@ -147,7 +140,7 @@ Benefits: No leaks, caching, <500ms ops, thread-safe, consistent field managers
 
 - **Eliminates Duplication:** Single implementation of caching, config handling, metrics
 - **Ensures Consistency:** Field manager naming, error types used by all packages
-- **Performance:** Client reuse, in-memory discovery, no schema fetching
+- **Performance:** Client reuse, lightweight reachability checks, no schema fetching
 - **Reliability:** Thread-safe, no memory leaks, proper timeout handling
 
 ---

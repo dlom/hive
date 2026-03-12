@@ -39,27 +39,6 @@ type Builder interface {
 	UseSecondaryAPIURL() Builder
 }
 
-// NewBuilder creates a new Builder for creating a client to connect to the remote cluster.
-// If the ClusterDeployment carries the fake cluster annotation, a fake client will be returned.
-func NewBuilder(c client.Client, cd *hivev1.ClusterDeployment, controllerName hivev1.ControllerName) Builder {
-	if utils.IsFakeCluster(cd) {
-		clusterVersion := ""
-		if cd.Status.InstallVersion != nil {
-			clusterVersion = *cd.Status.InstallVersion
-		}
-		return &fakeBuilder{
-			urlToUse:       activeURL,
-			clusterVersion: clusterVersion,
-		}
-	}
-
-	return NewBuilderWithOptions(
-		WithClusterDeployment(c, cd),
-		WithControllerName(controllerName),
-		WithoutCache(),
-	)
-}
-
 // ConnectToRemoteCluster connects to a remote cluster using the specified builder.
 // If the ClusterDeployment is marked as unreachable, then no connection will be made.
 // If there are problems connecting, then the specified clusterdeployment will be marked as unreachable.

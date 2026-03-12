@@ -15,9 +15,9 @@ Hive controllers manage hundreds of remote Kubernetes clusters concurrently thro
 - `pkg/remoteclient` - Client creation and connection management
 - `pkg/resource` - Resource operations (Apply, Patch, Delete)
 
-Both packages independently implement client lifecycle management, REST configuration handling, discovery client creation, field manager naming, and metrics collection. This duplication has led to inconsistent implementations, memory leaks, and performance issues. Controllers using both packages suffer from duplicated client creation overhead (3+ seconds per operation) and unbounded memory growth.
+Both packages independently implement client lifecycle management, REST configuration handling, field manager naming, and metrics collection. This duplication has led to inconsistent implementations, memory leaks, and performance issues. Controllers using both packages suffer from duplicated client creation overhead (3+ seconds per operation) and unbounded memory growth.
 
-Analysis of both packages identified five infrastructure components that should be shared: client caching, REST config utilities, discovery client management, field manager naming, and error types. Implementing these as shared utilities eliminates duplication, ensures consistency, and enables performance improvements across all Hive controllers.
+Analysis of both packages identified five infrastructure components that should be shared: client caching, REST config utilities, field manager naming, error types, and metrics. Implementing these as shared utilities eliminates duplication, ensures consistency, and enables performance improvements across all Hive controllers.
 
 ---
 
@@ -209,33 +209,6 @@ Always use `rest.CopyConfig()` before any mutation. Preserve all fields includin
 
 ---
 
-### Discovery Client Management
-
-#### In-Memory Caching Requirement
-
-Use in-memory caching exclusively. Disk-based discovery caching causes race conditions and I/O overhead. Discovery cache should be shared across clients for same cluster.
-
-#### Required Functions
-
-1. **NewCachedDiscoveryClient** - Create discovery client with in-memory cache
-   - Parameters: REST config, cache duration
-   - Returns: Cached discovery client interface
-   - Reuse discovery data across multiple client instances for same cluster
-
-2. **InvalidateDiscoveryCache** - Clear discovery cache for specific cluster
-   - Parameters: cluster key
-   - Invalidate when cluster becomes unreachable or after TTL expiration
-
-#### Cache Duration
-
-Configurable cache duration with recommended default of 10 minutes. Balance between staleness and performance. Discovery data rarely changes within a 10-minute window.
-
-#### Health Check Integration
-
-When health checks detect unreachable cluster, automatically invalidate discovery cache for that cluster. Next access will re-fetch discovery data and detect any changes.
-
----
-
 ### Field Manager Naming
 
 #### Single Source of Truth
@@ -351,7 +324,6 @@ Create package at `internal/clientutil/` (NOT `pkg/internal/clientutil`). The `i
 Organize into subpackages by function:
 - `internal/clientutil/cache/` - Client cache implementation
 - `internal/clientutil/config/` - REST config utilities
-- `internal/clientutil/discovery/` - Discovery client management
 - `internal/clientutil/errors/` - Error types and predicates
 - `internal/clientutil/metrics/` - Metrics infrastructure
 - `internal/clientutil/fieldmanager/` - Field manager naming
@@ -363,8 +335,6 @@ Main `internal/clientutil/` package imports and re-exports commonly used types a
 All cache operations MUST be thread-safe. Use `sync.RWMutex` for cache map protection. Read operations use RLock for concurrent reads. Write operations (insert, evict, invalidate) use full Lock.
 
 REST config utility functions must be pure (no shared mutable state). They should not rely on package-level variables except for metric registration.
-
-Discovery client cache must use thread-safe map access. Consider `sync.Map` for discovery cache if contention is high.
 
 Metrics registration must occur only at init time. Metric collection (increment, observe) is thread-safe in Prometheus client library.
 
@@ -389,18 +359,12 @@ Run all tests with `go test -race ./internal/clientutil/...` to detect data race
    - Custom dialer integration (verify dialer set correctly)
    - Config equality comparison (identical configs return true, different return false)
 
-3. **Discovery Tests**
-   - In-memory caching (verify no disk I/O)
-   - Cache reuse (multiple calls return same cached client)
-   - Cache invalidation (invalidate and verify re-fetch)
-   - TTL expiration (use fake time)
-
-4. **Field Manager Tests**
+3. **Field Manager Tests**
    - Name generation (verify format matches specification)
    - Controller name escaping (handle special characters)
    - Legacy name generation (verify backward compatibility)
 
-5. **Error Type Tests**
+4. **Error Type Tests**
    - Error type identification (IsNotFound, IsTimeout, etc.)
    - Error wrapping and unwrapping (errors.Is and errors.As work correctly)
    - Error message formatting (includes cluster, operation, resource details)
@@ -416,17 +380,15 @@ Run all tests with `go test -race ./internal/clientutil/...` to detect data race
 
 Create integration tests that use real Kubernetes API server (via envtest or kind):
 1. Cache integration with real client creation
-2. Discovery client cache with real API server
-3. Metrics collection end-to-end
-4. Concurrent operations from multiple controllers
+2. Metrics collection end-to-end
+3. Concurrent operations from multiple controllers
 
 #### Benchmarks
 
 Benchmark critical paths:
 1. Cache Get performance (hit vs miss)
 2. REST config copy performance
-3. Discovery client cache lookup performance
-4. Error wrapping overhead
+3. Error wrapping overhead
 
 Target: Cache Get (hit) < 1μs, Cache Get (miss with creation) < 100ms, Config copy < 10μs
 
@@ -458,7 +420,7 @@ Target: Cache Get (hit) < 1μs, Cache Get (miss with creation) < 100ms, Config c
 remoteclient v2 will use:
 - `cache.ClientCache` interface for caching built clients
 - `config.CopyConfigWithMetrics()` for immutable config handling
-- `discovery.NewCachedDiscoveryClient()` for reachability checks
+- Lightweight `ServerVersion()` discovery calls for reachability checks (not cached)
 - `fieldmanager.FieldManagerName()` for consistent naming
 - `errors.ClusterError` for typed errors
 - `metrics.*` for transport wrapper and cache metrics
@@ -470,7 +432,7 @@ remoteclient provides cache key by combining ClusterDeployment namespace/name, k
 resource helper v2 will use:
 - `cache.ClientCache` interface for caching resource clients
 - `config.CopyConfigWithMetrics()` for config preparation
-- `discovery.NewCachedDiscoveryClient()` if needed (SSA may not require discovery)
+- No discovery needed (SSA doesn't require discovery)
 - `fieldmanager.FieldManagerName()` for Apply/Patch operations
 - `errors.ClusterError` with operation-specific predicates
 - `metrics.*` for operation duration and result counting

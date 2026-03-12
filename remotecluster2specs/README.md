@@ -18,7 +18,6 @@ Specification for `internal/clientutil` package providing shared infrastructure 
 **Components:**
 - Client Cache (LRU + TTL + health checks)
 - REST Config Utilities (immutable operations)
-- Discovery Client Management (in-memory caching)
 - Field Manager Naming (unified `FieldManagerName()`)
 - Error Types (ClusterError with typed predicates)
 - Metrics Infrastructure (transport wrapper, cache, operations)

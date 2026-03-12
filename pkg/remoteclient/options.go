@@ -73,39 +73,3 @@ func WithCache(cache clientutil.ClientCache) BuilderOption {
 	}
 }
 
-// WithoutCache disables client caching.
-// This is the default behavior and matches v1 semantics.
-// Use this when you need a fresh client every time.
-func WithoutCache() BuilderOption {
-	return func(cfg *builderConfig) {
-		cfg.cache = nil
-		cfg.useCache = false
-	}
-}
-
-// WithPrimaryURL configures the builder to use the primary API URL.
-// If there is an API URL override, that is the primary.
-// Otherwise, the primary is the default API URL from the kubeconfig.
-func WithPrimaryURL() BuilderOption {
-	return func(cfg *builderConfig) {
-		cfg.urlSelection = primaryURL
-	}
-}
-
-// WithSecondaryURL configures the builder to use the secondary API URL.
-// If there is an API URL override, then the kubeconfig URL is the secondary.
-// Otherwise, the secondary is the override URL.
-func WithSecondaryURL() BuilderOption {
-	return func(cfg *builderConfig) {
-		cfg.urlSelection = secondaryURL
-	}
-}
-
-// WithActiveURL configures the builder to use the active API URL.
-// This is determined by the ActiveAPIURLOverrideCondition on the ClusterDeployment.
-// This is the default behavior.
-func WithActiveURL() BuilderOption {
-	return func(cfg *builderConfig) {
-		cfg.urlSelection = activeURL
-	}
-}

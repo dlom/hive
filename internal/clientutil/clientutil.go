@@ -9,7 +9,6 @@ import (
 
 	"github.com/openshift/hive/internal/clientutil/cache"
 	"github.com/openshift/hive/internal/clientutil/config"
-	"github.com/openshift/hive/internal/clientutil/discovery"
 	"github.com/openshift/hive/internal/clientutil/errors"
 	"github.com/openshift/hive/internal/clientutil/fieldmanager"
 	"github.com/openshift/hive/internal/clientutil/metrics"
@@ -51,41 +50,15 @@ var (
 	WithTTL     = cache.WithTTL
 )
 
-// Discovery types and functions
-type (
-	// CachedDiscoveryManager provides in-memory discovery client caching.
-	CachedDiscoveryManager = discovery.CachedDiscoveryManager
-
-	// DiscoveryOption configures discovery manager behavior.
-	DiscoveryOption = discovery.DiscoveryOption
-)
-
-// NewDiscoveryManager creates a new discovery manager.
-var NewDiscoveryManager = discovery.NewDiscoveryManager
-
-// Discovery configuration options
-var (
-	WithDiscoveryTTL = discovery.WithDiscoveryTTL
-)
-
 // Error types and functions
 type (
 	// ClusterError wraps errors with cluster context.
 	ClusterError = errors.ClusterError
 )
 
-// Error wrapping and predicates
+// Error wrapping
 var (
-	WrapClusterError       = errors.WrapClusterError
-	AsClusterError         = errors.AsClusterError
-	IsNotFound             = errors.IsNotFound
-	IsAlreadyExists        = errors.IsAlreadyExists
-	IsConflict             = errors.IsConflict
-	IsTimeout              = errors.IsTimeout
-	IsConnectionFailed     = errors.IsConnectionFailed
-	IsAuthenticationFailed = errors.IsAuthenticationFailed
-	IsInvalidResource      = errors.IsInvalidResource
-	IsCanceled             = errors.IsCanceled
+	WrapClusterError = errors.WrapClusterError
 )
 
 // Field manager functions
@@ -97,9 +70,6 @@ var (
 var (
 	CopyConfigWithMetrics  = config.CopyConfigWithMetrics
 	PrepareConfigForClient = config.PrepareConfigForClient
-	ConfigEquals           = config.ConfigEquals
-	IsTransportWrapped     = config.IsTransportWrapped
-	GetHTTPClient          = config.GetHTTPClient
 )
 
 // Metrics functions

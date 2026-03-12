@@ -36,11 +36,6 @@ func (h *fakeHelper) Apply(ctx context.Context, obj interface{}, opts ...ApplyOp
 	// Simulate successful apply - assume configured (resource updated)
 	return ApplyResult{
 		State: Configured,
-		GVK: schema.GroupVersionKind{
-			Group:   "",
-			Version: "v1",
-			Kind:    "FakeResource",
-		},
 	}, nil
 }
 

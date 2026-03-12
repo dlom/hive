@@ -1,7 +1,6 @@
 package errors
 
 import (
-	"context"
 	stderr "errors"
 	"fmt"
 	"testing"
@@ -226,9 +225,9 @@ func TestErrorChaining(t *testing.T) {
 		"default", "test-deployment")
 	doubleWrappedErr := fmt.Errorf("additional context: %w", wrappedErr)
 
-	// Test that IsNotFound works through the chain
-	if !IsNotFound(doubleWrappedErr) {
-		t.Error("IsNotFound() should return true for wrapped NotFound error")
+	// Test that apierrors.IsNotFound works through the chain
+	if !apierrors.IsNotFound(doubleWrappedErr) {
+		t.Error("apierrors.IsNotFound() should return true for wrapped NotFound error")
 	}
 
 	// Test that errors.Is works
@@ -244,46 +243,5 @@ func TestErrorChaining(t *testing.T) {
 
 	if ce.ClusterID != "test-ns/test-cluster" {
 		t.Errorf("ClusterID = %q, want %q", ce.ClusterID, "test-ns/test-cluster")
-	}
-}
-
-func TestErrorPredicate_ContextErrors(t *testing.T) {
-	tests := []struct {
-		name         string
-		err          error
-		isTimeout    bool
-		isCanceled   bool
-		isConnection bool
-		isAuth       bool
-	}{
-		{
-			name:       "context deadline exceeded",
-			err:        context.DeadlineExceeded,
-			isTimeout:  true,
-			isCanceled: false,
-		},
-		{
-			name:       "context canceled",
-			err:        context.Canceled,
-			isTimeout:  false,
-			isCanceled: true,
-		},
-		{
-			name:       "wrapped deadline exceeded",
-			err:        fmt.Errorf("operation failed: %w", context.DeadlineExceeded),
-			isTimeout:  true,
-			isCanceled: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := IsTimeout(tt.err); got != tt.isTimeout {
-				t.Errorf("IsTimeout() = %v, want %v", got, tt.isTimeout)
-			}
-			if got := IsCanceled(tt.err); got != tt.isCanceled {
-				t.Errorf("IsCanceled() = %v, want %v", got, tt.isCanceled)
-			}
-		})
 	}
 }

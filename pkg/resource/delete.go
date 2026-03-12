@@ -5,7 +5,6 @@ import (
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -56,15 +55,13 @@ func (h *helperImpl) Delete(ctx context.Context, gvk schema.GroupVersionKind, na
 	if currentObj.GetDeletionTimestamp() != nil {
 		if options.wait {
 			// Wait for deletion to complete
-			return h.waitForDeletion(ctx, gvk, objectKey, currentObj.GetDeletionTimestamp())
+			return h.waitForDeletion(ctx, gvk, objectKey)
 		}
 
 		// Already deleting, return DeletionInProgress
 		h.recordOperation("delete", gvk, "deletion-in-progress", time.Since(startTime).Seconds())
 		return DeleteResult{
-			State:             DeletionInProgress,
-			DeletionTimestamp: currentObj.GetDeletionTimestamp(),
-			Object:            currentObj,
+			State: DeletionInProgress,
 		}, nil
 	}
 
@@ -99,7 +96,7 @@ func (h *helperImpl) Delete(ctx context.Context, gvk schema.GroupVersionKind, na
 
 	// Wait for deletion if requested
 	if options.wait {
-		return h.waitForDeletion(ctx, gvk, objectKey, nil)
+		return h.waitForDeletion(ctx, gvk, objectKey)
 	}
 
 	// Delete request succeeded
@@ -114,7 +111,6 @@ func (h *helperImpl) waitForDeletion(
 	ctx context.Context,
 	gvk schema.GroupVersionKind,
 	objectKey client.ObjectKey,
-	deletionTimestamp *metav1.Time,
 ) (DeleteResult, error) {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
@@ -124,8 +120,7 @@ func (h *helperImpl) waitForDeletion(
 		case <-ctx.Done():
 			// Context timeout or cancellation
 			return DeleteResult{
-				State:             DeletionInProgress,
-				DeletionTimestamp: deletionTimestamp,
+				State: DeletionInProgress,
 			}, ctx.Err()
 
 		case <-ticker.C:
@@ -142,11 +137,6 @@ func (h *helperImpl) waitForDeletion(
 				}
 				// Unexpected error
 				return DeleteResult{}, h.wrapError(err, "poll-deletion", gvk, objectKey.Namespace, objectKey.Name)
-			}
-
-			// Still exists, update deletion timestamp if we see it
-			if obj.GetDeletionTimestamp() != nil {
-				deletionTimestamp = obj.GetDeletionTimestamp()
 			}
 
 			// Continue polling

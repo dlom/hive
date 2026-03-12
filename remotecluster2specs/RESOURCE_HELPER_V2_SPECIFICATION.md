@@ -15,7 +15,7 @@ The Hive resource helper package (`pkg/resource`) provides programmatic access t
 
 The current implementation was written years ago and has accumulated critical technical debt including thread-unsafe global state mutation, heavy coupling to kubectl CLI libraries, and no context support. Performance issues include 3+ second initialization overhead and repeated client creation.
 
-**This specification focuses exclusively on resource operation requirements** (Apply, Patch, Delete semantics and API design). Infrastructure concerns (client caching, REST config handling, discovery management, field manager naming, error types, metrics) are addressed in the Shared Client Utilities Specification.
+**This specification focuses exclusively on resource operation requirements** (Apply, Patch, Delete semantics and API design). Infrastructure concerns (client caching, REST config handling, field manager naming, error types, metrics) are addressed in the Shared Client Utilities Specification.
 
 ## Dependencies
 
@@ -24,7 +24,6 @@ The current implementation was written years ago and has accumulated critical te
 The resource helper v2 depends on shared infrastructure components defined in `SHARED_CLIENT_UTILITIES_SPECIFICATION.md`:
 - **Client Caching:** Per-cluster client caching with LRU eviction and TTL
 - **REST Config Utilities:** Immutable config handling and defensive copying
-- **Discovery Management:** Discovery client lifecycle and caching (if needed for backward compatibility)
 - **Field Manager Naming:** Consistent field manager naming scheme via `FieldManagerName()`
 - **Error Types:** Typed error definitions (AlreadyExists, NotFound, Conflict, etc.)
 - **Metrics Infrastructure:** Operation instrumentation and cache metrics
@@ -639,7 +638,7 @@ These files contain the problems described in this document:
 
 ### Related Specifications
 
-- `SHARED_CLIENT_UTILITIES_SPECIFICATION.md` - Infrastructure components (caching, config, discovery, errors, metrics)
+- `SHARED_CLIENT_UTILITIES_SPECIFICATION.md` - Infrastructure components (caching, config, errors, metrics)
 - `REMOTECLIENT_V2_SPECIFICATION.md` - Client creation and connection management (complementary package)
 
 ---

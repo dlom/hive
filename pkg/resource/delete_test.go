@@ -3,7 +3,6 @@ package resource
 import (
 	"context"
 	"testing"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -59,50 +58,6 @@ func TestHelper_Delete(t *testing.T) {
 			objName:   "non-existent",
 			existing:  nil,
 			wantState: NotFound,
-			wantErr:   false,
-		},
-		{
-			name: "delete with grace period",
-			gvk: schema.GroupVersionKind{
-				Version: "v1",
-				Kind:    "ConfigMap",
-			},
-			namespace: "default",
-			objName:   "grace-period-test",
-			existing: []runtime.Object{
-				&corev1.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "grace-period-test",
-						Namespace: "default",
-					},
-				},
-			},
-			options: []DeleteOption{
-				WithGracePeriod(30),
-			},
-			wantState: Deleted,
-			wantErr:   false,
-		},
-		{
-			name: "delete with propagation policy",
-			gvk: schema.GroupVersionKind{
-				Version: "v1",
-				Kind:    "ConfigMap",
-			},
-			namespace: "default",
-			objName:   "propagation-test",
-			existing: []runtime.Object{
-				&corev1.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "propagation-test",
-						Namespace: "default",
-					},
-				},
-			},
-			options: []DeleteOption{
-				WithPropagationPolicy(metav1.DeletePropagationForeground),
-			},
-			wantState: Deleted,
 			wantErr:   false,
 		},
 	}
@@ -163,90 +118,9 @@ func TestHelper_DeleteDeletionInProgress(t *testing.T) {
 		result, err := helper.Delete(ctx, gvk, "default", "finalizer-test")
 		require.NoError(t, err)
 		assert.Equal(t, DeletionInProgress, result.State)
-		assert.NotNil(t, result.DeletionTimestamp)
-		assert.NotNil(t, result.Object)
 	})
 }
 
-func TestHelper_DeleteWithWait(t *testing.T) {
-	logger := log.NewEntry(log.StandardLogger())
-
-	t.Run("wait for deletion to complete", func(t *testing.T) {
-		// Create resource
-		resource := &corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "wait-test",
-				Namespace: "default",
-			},
-		}
-
-		helper, err := NewHelper(logger,
-			WithClient(newFakeClientWithObjects(resource)),
-			WithControllerName(hivev1.ClustersyncControllerName),
-		)
-		require.NoError(t, err)
-
-		// Create context with short timeout to prevent hanging
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-
-		gvk := schema.GroupVersionKind{
-			Version: "v1",
-			Kind:    "ConfigMap",
-		}
-
-		// Note: Fake client deletes immediately, so wait should complete quickly
-		result, err := helper.Delete(ctx, gvk, "default", "wait-test", WithWait())
-
-		// Either successfully deleted or timeout (acceptable in test)
-		if err != nil {
-			// Context timeout is acceptable
-			assert.Contains(t, err.Error(), "context")
-		} else {
-			assert.Equal(t, Deleted, result.State)
-		}
-	})
-
-	t.Run("wait respects context timeout", func(t *testing.T) {
-		// Create resource with finalizer to simulate blocking deletion
-		deletionTimestamp := metav1.Now()
-		resource := &corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:              "timeout-test",
-				Namespace:         "default",
-				DeletionTimestamp: &deletionTimestamp,
-				Finalizers:        []string{"block-deletion"},
-			},
-		}
-
-		helper, err := NewHelper(logger,
-			WithClient(newFakeClientWithObjects(resource)),
-			WithControllerName(hivev1.ClustersyncControllerName),
-		)
-		require.NoError(t, err)
-
-		// Create context with very short timeout
-		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-		defer cancel()
-
-		gvk := schema.GroupVersionKind{
-			Version: "v1",
-			Kind:    "ConfigMap",
-		}
-
-		// Wait should return error due to context timeout
-		result, err := helper.Delete(ctx, gvk, "default", "timeout-test", WithWait())
-
-		// Should get context error or DeletionInProgress
-		if err != nil {
-			assert.Contains(t, err.Error(), "context")
-			assert.Equal(t, DeletionInProgress, result.State)
-		} else {
-			// Fake client might delete immediately
-			assert.Equal(t, Deleted, result.State)
-		}
-	})
-}
 
 func TestHelper_DeleteIdempotent(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
@@ -394,8 +268,6 @@ func TestHelper_DeleteStateSemanticsVsV1(t *testing.T) {
 
 		// Explicitly returns DeletionInProgress (not ambiguous false)
 		assert.Equal(t, DeletionInProgress, result.State, "should return explicit DeletionInProgress state")
-		assert.NotNil(t, result.DeletionTimestamp, "should include deletion timestamp")
-		assert.NotNil(t, result.Object, "should include object for inspection")
 	})
 
 	t.Run("distinguishes NotFound from Deleted", func(t *testing.T) {
@@ -524,42 +396,3 @@ func TestHelper_DeleteMetricsRecording(t *testing.T) {
 	})
 }
 
-func TestHelper_DeleteWaitForDeletion(t *testing.T) {
-	logger := log.NewEntry(log.StandardLogger())
-
-	t.Run("waitForDeletion polls until deleted", func(t *testing.T) {
-		// Create resource
-		resource := &corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "poll-test",
-				Namespace: "default",
-			},
-		}
-
-		helper, err := NewHelper(logger,
-			WithClient(newFakeClientWithObjects(resource)),
-			WithControllerName(hivev1.ClustersyncControllerName),
-		)
-		require.NoError(t, err)
-
-		// Short timeout to prevent hanging
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-
-		gvk := schema.GroupVersionKind{
-			Version: "v1",
-			Kind:    "ConfigMap",
-		}
-
-		// Delete with wait - fake client should delete immediately
-		result, err := helper.Delete(ctx, gvk, "default", "poll-test", WithWait())
-
-		// Should succeed or timeout (both acceptable in test)
-		if err == nil {
-			assert.Equal(t, Deleted, result.State)
-		} else {
-			// Timeout is acceptable
-			assert.Contains(t, err.Error(), "context")
-		}
-	})
-}

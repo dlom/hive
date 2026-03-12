@@ -110,9 +110,7 @@ func (h *helperImpl) Apply(ctx context.Context, obj interface{}, opts ...ApplyOp
 	h.recordOperation("apply", gvk, "success", time.Since(startTime).Seconds())
 
 	return ApplyResult{
-		State:  state,
-		Object: unstructuredObj,
-		GVK:    gvk,
+		State: state,
 	}, nil
 }
 

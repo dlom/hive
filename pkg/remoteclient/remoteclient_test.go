@@ -27,20 +27,6 @@ const (
 	testControllerName       hivev1.ControllerName = "test-controller-name"
 )
 
-func TestNewBuilder(t *testing.T) {
-	cd := testClusterDeployment()
-	c := fakeClient(cd)
-	controllerName := testControllerName
-
-	// NewBuilder returns Builder interface
-	actual := NewBuilder(c, cd, controllerName)
-	assert.NotNil(t, actual, "builder should not be nil")
-
-	// Verify it implements Builder interface
-	_, ok := actual.(Builder)
-	assert.True(t, ok, "NewBuilder should return a Builder")
-}
-
 func Test_InitialURL(t *testing.T) {
 	cd := testClusterDeployment()
 	kubeconfigSecret := testKubeconfigSecret(t)
@@ -130,7 +116,10 @@ func Test_builder_RESTConfig(t *testing.T) {
 			}
 			kubeconfigSecret := testKubeconfigSecret(t)
 			c := fakeClient(cd, kubeconfigSecret)
-			builder := NewBuilder(c, cd, "test-controller-name")
+			builder := NewBuilderWithOptions(
+				WithClusterDeployment(c, cd),
+				WithControllerName("test-controller-name"),
+			)
 			switch {
 			case tc.usePrimary:
 				builder = builder.UsePrimaryAPIURL()
@@ -211,7 +200,10 @@ func Test_builder_Build(t *testing.T) {
 			setOverrideActive(cd)
 			kubeconfigSecret := testKubeconfigSecret(t)
 			c := fakeClient(cd, kubeconfigSecret)
-			builder := NewBuilder(c, cd, "test-controller-name")
+			builder := NewBuilderWithOptions(
+				WithClusterDeployment(c, cd),
+				WithControllerName("test-controller-name"),
+			)
 			// BuildWithContext is expected to fail due to "no such host" error, as the BuildWithContext() method
 			// is responsible for testing reachability.
 			_, err := builder.BuildWithContext(context.Background())

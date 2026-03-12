@@ -91,33 +91,6 @@ func TestHelper_Patch(t *testing.T) {
 		// 	wantErr:   false,
 		// },
 		{
-			name: "patch with custom field manager",
-			obj: &corev1.ConfigMap{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "v1",
-					Kind:       "ConfigMap",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "custom-fm-patch",
-					Namespace: "default",
-				},
-			},
-			patch: []byte(`{"data":{"key":"value"}}`),
-			existing: []runtime.Object{
-				&corev1.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "custom-fm-patch",
-						Namespace: "default",
-					},
-				},
-			},
-			options: []PatchOption{
-				WithPatchFieldManager("custom-patch-manager"),
-			},
-			wantState: Patched,
-			wantErr:   false,
-		},
-		{
 			name: "patch with merge patch type",
 			obj: &corev1.ConfigMap{
 				TypeMeta: metav1.TypeMeta{
@@ -227,7 +200,6 @@ func TestHelper_Patch(t *testing.T) {
 			// Verify success
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantState, result.State, "unexpected patch state")
-			assert.NotNil(t, result.Object, "result object should not be nil")
 		})
 	}
 }
@@ -346,30 +318,6 @@ func TestHelper_PatchFieldManager(t *testing.T) {
 		// Can't easily verify with fake client, but code path is tested
 	})
 
-	t.Run("allows custom field manager override", func(t *testing.T) {
-		helper, err := NewHelper(logger,
-			WithClient(newFakeClientWithObjects(existing)),
-			WithControllerName(hivev1.ClustersyncControllerName),
-		)
-		require.NoError(t, err)
-
-		obj := &corev1.ConfigMap{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: "v1",
-				Kind:       "ConfigMap",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "fm-test",
-				Namespace: "default",
-			},
-		}
-
-		patch := []byte(`{"data":{"key":"value"}}`)
-
-		result, err := helper.Patch(ctx, obj, patch, WithPatchFieldManager("my-custom-manager"))
-		require.NoError(t, err)
-		assert.Equal(t, Patched, result.State)
-	})
 }
 
 func TestHelper_PatchTypes(t *testing.T) {

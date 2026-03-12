@@ -12,7 +12,6 @@ The `internal/clientutil` package addresses critical technical debt identified i
 - **No client caching** (clients recreated on every reconciliation)
 - **Inconsistent field manager naming** (7 different schemes: hive1-7)
 - **No context support** (operations hang indefinitely)
-- **Disk-based discovery caching** with race conditions
 
 ## Package Structure
 
@@ -20,7 +19,6 @@ The `internal/clientutil` package addresses critical technical debt identified i
 internal/clientutil/
 ├── cache/           # Thread-safe LRU client cache with TTL
 ├── config/          # Immutable REST config utilities
-├── discovery/       # In-memory discovery client caching
 ├── errors/          # Typed cluster errors with predicates
 ├── fieldmanager/    # Unified field manager naming
 ├── metrics/         # Prometheus metrics infrastructure
@@ -168,7 +166,6 @@ Package                Coverage
 ---------------------------------------
 cache/                 97.4%
 config/                94.1%
-discovery/             89.7%
 fieldmanager/          100.0%
 errors/                42.5% (predicates for specific error types)
 metrics/               14.6% (mostly metric definitions)
@@ -185,7 +182,6 @@ All tests pass with race detector enabled.
 Uses clientutil for:
 - Client caching with automatic invalidation
 - REST config preparation with metrics
-- Discovery client management
 - Field manager naming
 - Error wrapping
 
@@ -237,10 +233,7 @@ This package fixes several critical bugs:
 3. **os.Args Global Mutation** (`pkg/resource/patch.go:56-58`)
    - Fixed: Field manager passed via API parameters, not environment
 
-4. **Disk-Based Discovery Cache** (`pkg/resource/factory_discovery.go:14-19`)
-   - Fixed: In-memory caching only, no disk I/O or race conditions
-
-5. **Inconsistent Field Manager Naming**
+4. **Inconsistent Field Manager Naming**
    - Fixed: Unified `"hive-{controller}"` format
 
 ## Migration Guide

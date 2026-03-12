@@ -32,12 +32,12 @@ func TestIntegration_CacheWithConfigUtils(t *testing.T) {
 	cfgWithMetrics := clientutil.CopyConfigWithMetrics(cfg, hivev1.ClustersyncControllerName, true)
 
 	// Verify original wasn't modified
-	if clientutil.IsTransportWrapped(cfg) {
+	if cfg.WrapTransport != nil {
 		t.Error("Original config was mutated (wrapper applied)")
 	}
 
 	// Verify copy has wrapper
-	if !clientutil.IsTransportWrapped(cfgWithMetrics) {
+	if cfgWithMetrics.WrapTransport == nil {
 		t.Error("Config with metrics should have wrapper")
 	}
 
@@ -84,56 +84,6 @@ func TestIntegration_CacheWithConfigUtils(t *testing.T) {
 	}
 	if stats.Misses != 1 {
 		t.Errorf("Stats.Misses = %d, want 1", stats.Misses)
-	}
-}
-
-// TestIntegration_ErrorWrappingWithPredicates tests error utilities working together.
-func TestIntegration_ErrorWrappingWithPredicates(t *testing.T) {
-	// Create a cluster error
-	gvk := schema.GroupVersionKind{
-		Group:   "apps",
-		Version: "v1",
-		Kind:    "Deployment",
-	}
-
-	err := clientutil.WrapClusterError(
-		context.DeadlineExceeded,
-		"hive/test-cluster",
-		"apply",
-		gvk,
-		"default",
-		"my-deployment",
-	)
-
-	// Test predicates
-	if !clientutil.IsTimeout(err) {
-		t.Error("IsTimeout() should return true for DeadlineExceeded")
-	}
-
-	if clientutil.IsNotFound(err) {
-		t.Error("IsNotFound() should return false")
-	}
-
-	if clientutil.IsCanceled(err) {
-		t.Error("IsCanceled() should return false for timeout")
-	}
-
-	// Test error unwrapping
-	var ce *clientutil.ClusterError
-	if !clientutil.AsClusterError(err, &ce) {
-		t.Fatal("AsClusterError() should return true")
-	}
-
-	if ce.ClusterID != "hive/test-cluster" {
-		t.Errorf("ClusterID = %q, want %q", ce.ClusterID, "hive/test-cluster")
-	}
-
-	if ce.Operation != "apply" {
-		t.Errorf("Operation = %q, want %q", ce.Operation, "apply")
-	}
-
-	if ce.GVK != gvk {
-		t.Errorf("GVK = %v, want %v", ce.GVK, gvk)
 	}
 }
 
@@ -242,7 +192,7 @@ func TestIntegration_ConfigImmutability(t *testing.T) {
 	if withMetrics.Host != original.Host {
 		t.Error("CopyConfigWithMetrics should preserve Host")
 	}
-	if !clientutil.IsTransportWrapped(withMetrics) {
+	if withMetrics.WrapTransport == nil {
 		t.Error("CopyConfigWithMetrics should apply wrapper")
 	}
 
@@ -254,35 +204,6 @@ func TestIntegration_ConfigImmutability(t *testing.T) {
 	}
 }
 
-// TestIntegration_DiscoveryWithCache tests discovery manager integration.
-func TestIntegration_DiscoveryWithCache(t *testing.T) {
-	discoveryMgr := clientutil.NewDiscoveryManager(
-		clientutil.WithDiscoveryTTL(1 * time.Hour),
-	)
-
-	cfg := &rest.Config{
-		Host: "https://fake-cluster.example.com:6443",
-	}
-
-	// Attempt to create discovery client (will fail for fake server, but tests the API)
-	_, err := discoveryMgr.NewCachedDiscoveryClient(cfg)
-	if err != nil {
-		t.Logf("Expected error for fake server: %v", err)
-		// This is okay - we're testing the API, not actual connectivity
-		return
-	}
-
-	// If we somehow succeeded (unlikely), verify cache reuse
-	client2, err := discoveryMgr.NewCachedDiscoveryClient(cfg)
-	if err == nil && client2 != nil {
-		t.Log("Discovery client created successfully (cache reuse will be tested)")
-	}
-
-	// Test invalidation
-	discoveryMgr.InvalidateCache(cfg.Host)
-	t.Log("Discovery cache invalidated successfully")
-}
-
 // TestIntegration_EndToEnd tests a complete workflow using all components.
 func TestIntegration_EndToEnd(t *testing.T) {
 	// 1. Create infrastructure
@@ -290,9 +211,6 @@ func TestIntegration_EndToEnd(t *testing.T) {
 		clientutil.WithMaxSize(100),
 		clientutil.WithTTL(10*time.Minute),
 	)
-
-	discoveryMgr := clientutil.NewDiscoveryManager()
-	_ = discoveryMgr // Discovery manager created for completeness, not used in this simple test
 
 	// 2. Prepare REST config
 	cfg := &rest.Config{
@@ -345,19 +263,15 @@ func TestIntegration_EndToEnd(t *testing.T) {
 		"default",
 		"test-deployment",
 	)
+	_ = wrappedErr // Error is wrapped but not tested further
 
-	// 6. Test error predicates
-	if !clientutil.IsTimeout(wrappedErr) {
-		t.Error("Should detect timeout error")
-	}
-
-	// 7. Get field manager name
+	// 6. Get field manager name
 	fieldManager := clientutil.FieldManagerName(hivev1.ClustersyncControllerName)
 	if fieldManager != "hive-clustersync" {
 		t.Errorf("Field manager = %q, want %q", fieldManager, "hive-clustersync")
 	}
 
-	// 8. Verify cache stats
+	// 7. Verify cache stats
 	stats := cache.Stats()
 	if stats.Size != 1 {
 		t.Errorf("Cache size = %d, want 1", stats.Size)

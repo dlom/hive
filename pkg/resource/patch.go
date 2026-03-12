@@ -81,8 +81,7 @@ func (h *helperImpl) Patch(ctx context.Context, obj interface{}, patch []byte, o
 	}
 
 	return PatchResult{
-		State:  state,
-		Object: unstructuredObj,
+		State: state,
 	}, nil
 }
 

@@ -3,7 +3,6 @@ package config
 import (
 	"context"
 	"net"
-	"net/http"
 
 	"k8s.io/client-go/rest"
 
@@ -99,84 +98,3 @@ func createDialerWithIPOverride(ipOverride string) func(context.Context, string,
 	}
 }
 
-// ConfigEquals compares two REST configs for equality based on relevant fields.
-// This is useful for cache key generation to determine if two configs should
-// reuse the same cached client.
-//
-// Compared fields: Host, BearerToken, CertData, KeyData
-// Ignored fields: Timeout, QPS, Burst, UserAgent (client behavior, not identity)
-func ConfigEquals(cfg1, cfg2 *rest.Config) bool {
-	if cfg1 == nil && cfg2 == nil {
-		return true
-	}
-	if cfg1 == nil || cfg2 == nil {
-		return false
-	}
-
-	// Compare host
-	if cfg1.Host != cfg2.Host {
-		return false
-	}
-
-	// Compare bearer token
-	if cfg1.BearerToken != cfg2.BearerToken {
-		return false
-	}
-
-	// Compare cert data
-	if !bytesEqual(cfg1.TLSClientConfig.CertData, cfg2.TLSClientConfig.CertData) {
-		return false
-	}
-
-	// Compare key data
-	if !bytesEqual(cfg1.TLSClientConfig.KeyData, cfg2.TLSClientConfig.KeyData) {
-		return false
-	}
-
-	// Compare CA data
-	if !bytesEqual(cfg1.TLSClientConfig.CAData, cfg2.TLSClientConfig.CAData) {
-		return false
-	}
-
-	return true
-}
-
-// bytesEqual compares two byte slices for equality.
-func bytesEqual(a, b []byte) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
-// IsTransportWrapped checks if a REST config already has a transport wrapper.
-// This is useful to avoid duplicate wrapping.
-func IsTransportWrapped(cfg *rest.Config) bool {
-	if cfg == nil {
-		return false
-	}
-	return cfg.WrapTransport != nil
-}
-
-// GetHTTPClient creates an HTTP client from a REST config.
-// This is useful for custom operations that need direct HTTP access.
-func GetHTTPClient(cfg *rest.Config) (*http.Client, error) {
-	if cfg == nil {
-		return nil, nil
-	}
-
-	transport, err := rest.TransportFor(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	return &http.Client{
-		Transport: transport,
-		Timeout:   cfg.Timeout,
-	}, nil
-}

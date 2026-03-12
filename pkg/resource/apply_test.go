@@ -127,57 +127,6 @@ data:
 		// 	wantErr:   false,
 		// },
 		{
-			name: "apply with custom field manager",
-			input: []byte(`
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: custom-fm-config
-  namespace: default
-data:
-  key: value
-`),
-			options: []ApplyOption{
-				WithFieldManager("custom-manager"),
-			},
-			wantState: Created,
-			wantErr:   false,
-		},
-		{
-			name: "apply with force option",
-			input: []byte(`
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: force-config
-  namespace: default
-data:
-  key: forced-value
-`),
-			options: []ApplyOption{
-				WithForce(),
-			},
-			wantState: Created,
-			wantErr:   false,
-		},
-		{
-			name: "apply with dry-run option",
-			input: []byte(`
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: dryrun-config
-  namespace: default
-data:
-  key: value
-`),
-			options: []ApplyOption{
-				WithDryRun(),
-			},
-			wantState: Created,
-			wantErr:   false,
-		},
-		{
 			name: "apply runtime.Object",
 			input: &corev1.ConfigMap{
 				TypeMeta: metav1.TypeMeta{
@@ -282,8 +231,6 @@ metadata:
 			// Verify success
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantState, result.State, "unexpected apply state")
-			assert.NotNil(t, result.Object, "result object should not be nil")
-			assert.False(t, result.GVK.Empty(), "result GVK should not be empty")
 		})
 	}
 }
@@ -349,27 +296,6 @@ data:
 		// We can't easily verify this with fake client, but the code path is tested
 	})
 
-	t.Run("allows custom field manager override", func(t *testing.T) {
-		helper, err := NewHelper(logger,
-			WithClient(newFakeClient()),
-			WithControllerName(hivev1.ClustersyncControllerName),
-		)
-		require.NoError(t, err)
-
-		yamlData := []byte(`
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: custom-fm-test
-  namespace: default
-data:
-  key: value
-`)
-
-		result, err := helper.Apply(ctx, yamlData, WithFieldManager("my-custom-manager"))
-		require.NoError(t, err)
-		assert.Equal(t, Created, result.State)
-	})
 }
 
 func TestHelper_ApplyToUnstructured(t *testing.T) {

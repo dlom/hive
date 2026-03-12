@@ -15,7 +15,7 @@ The Hive remote client package (`pkg/remoteclient`) provides client creation and
 
 The current implementation creates new clients on every call, performs blocking reachability checks without timeout control, and lacks cache invalidation strategies for certificate rotation and API URL failover. Controllers managing hundreds of clusters recreate clients repeatedly, causing performance overhead and memory churn.
 
-**This specification focuses exclusively on client creation and connection management.** Infrastructure concerns (client caching, REST config utilities, discovery management, field manager naming, error types, metrics) are addressed in the Shared Client Utilities Specification. Resource operations (Apply, Patch, Delete) are addressed in the Resource Helper v2 Specification.
+**This specification focuses exclusively on client creation and connection management.** Infrastructure concerns (client caching, REST config utilities, field manager naming, error types, metrics) are addressed in the Shared Client Utilities Specification. Resource operations (Apply, Patch, Delete) are addressed in the Resource Helper v2 Specification.
 
 ---
 
@@ -99,7 +99,7 @@ func (b *builder) Build() (client.Client, error) {
 
 **Problem:** Every client creation makes a blocking discovery call with no timeout control. Fails fast if cluster unreachable (good), but without caching this repeats every reconciliation.
 
-**Requirement:** v2 MUST respect context timeouts for reachability checks. Use cached discovery clients from shared utilities to avoid repeated discovery calls. Allow reachability check to be optional (skip if client already cached).
+**Requirement:** v2 MUST respect context timeouts for reachability checks. Use lightweight `ServerVersion()` calls for reachability verification. Allow reachability check to be optional (skip if client already cached).
 
 ### 5. No Cache Invalidation Strategy
 
@@ -118,13 +118,13 @@ Uses `"hive2-" + controllerName` for field manager. Different from resource help
 
 **Requirement:** v2 MUST use `FieldManagerName()` from shared utilities specification. Consistent naming across all Hive packages. Default format: `"hive-{controllername}"` without version prefix.
 
-### 7. Discovery Client Recreation
+### 7. Heavy Discovery Calls for Reachability Checks
 
 **Location:** `pkg/remoteclient/remoteclient.go`, lines 207-214
 
-Discovery client created for reachability check, then thrown away. Controller-runtime client creates its own internal discovery infrastructure. No reuse between verification step and actual client usage.
+Uses `GetAPIGroupResources()` which queries all API groups and resources (~10-30 API calls, 3+ seconds overhead). This heavy discovery call is repeated on every client creation when caching is not used.
 
-**Requirement:** v2 MUST use cached discovery clients from shared utilities. Reuse discovery client across multiple operations. See Shared Client Utilities Specification for discovery management.
+**Requirement:** v2 MUST use lightweight `ServerVersion()` call for reachability checks (single API call, ~50-100ms). Client caching eliminates most reachability checks anyway (90%+ cache hit rate).
 
 ---
 
@@ -250,11 +250,11 @@ See `pkg/remoteclient/dialer.go` for current implementation pattern.
 
 #### Client Reuse
 
-First access creates client (~300ms with discovery). Cache hit returns existing client (<10ms map lookup). Cache miss rate <5% in multi-cluster scenarios (95%+ hit rate).
+First access creates client (~300ms including reachability check). Cache hit returns existing client (<10ms map lookup). Cache miss rate <5% in multi-cluster scenarios (95%+ hit rate).
 
 #### Non-Blocking Initialization
 
-Builder creation must be fast (<1ms). Expensive operations (client creation, discovery) deferred until Build called. Context timeout prevents indefinite blocking.
+Builder creation must be fast (<1ms). Expensive operations (client creation, reachability check) deferred until Build called. Context timeout prevents indefinite blocking.
 
 #### Cache Efficiency
 
@@ -432,7 +432,7 @@ ResourceVersion changes trigger cache miss (certificate rotation). API URL chang
 
 **Health Check Failures (Automatic):**
 - Background goroutine checks cluster health every 2 minutes
-- Discovery call or health endpoint check
+- Lightweight health check (e.g., ServerVersion call)
 - On failure, evict from cache
 - Next access attempts fresh connection
 
@@ -454,11 +454,6 @@ v2 MUST use shared utilities from shared specification:
 - Use `CopyConfigWithMetrics()` from `internal/clientutil/config`
 - Use `PrepareConfigForClient()` for URL/IP overrides
 - Immutability guaranteed by shared utilities
-
-**Discovery Management:**
-- Use `NewCachedDiscoveryClient()` from `internal/clientutil/discovery`
-- In-memory caching, no disk I/O
-- Shared across clients for same cluster
 
 **Field Manager Naming:**
 - Use `FieldManagerName()` from `internal/clientutil/fieldmanager`
@@ -690,7 +685,7 @@ Use envtest or kind:
 
 ### Related Specifications
 
-- `SHARED_CLIENT_UTILITIES_SPECIFICATION.md` - Infrastructure components (caching, config, discovery, errors, metrics)
+- `SHARED_CLIENT_UTILITIES_SPECIFICATION.md` - Infrastructure components (caching, config, errors, metrics)
 - `RESOURCE_HELPER_V2_SPECIFICATION.md` - Resource operations (Apply, Patch, Delete) using clients from this package
 
 ---
