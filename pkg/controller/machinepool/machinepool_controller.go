@@ -331,6 +331,12 @@ func (r *ReconcileMachinePool) Reconcile(ctx context.Context, request reconcile.
 		return reconcile.Result{}, err
 	}
 
+	// Check if cluster is marked as unreachable
+	if unreachable, _ := controllerutils.Unreachable(cd); unreachable {
+		logger.Debug("skipping cluster with unreachable condition")
+		return reconcile.Result{}, nil
+	}
+
 	// Default "success" for fake clusters
 	ret, err := reconcile.Result{}, nil
 	if controllerutils.IsFakeCluster(cd) {
@@ -351,12 +357,6 @@ func (r *ReconcileMachinePool) Reconcile(ctx context.Context, request reconcile.
 }
 
 func (r *ReconcileMachinePool) reconcile(pool *hivev1.MachinePool, cd *hivev1.ClusterDeployment, logger log.FieldLogger) (reconcile.Result, error) {
-	// Check if cluster is marked as unreachable
-	if unreachable, _ := controllerutils.Unreachable(cd); unreachable {
-		logger.Debug("skipping cluster with unreachable condition")
-		return reconcile.Result{}, nil
-	}
-
 	// Connect to remote cluster
 	remoteClusterAPIClient, err := r.remoteClusterAPIClientBuilder(cd).BuildWithContext(context.Background())
 	if err != nil {
