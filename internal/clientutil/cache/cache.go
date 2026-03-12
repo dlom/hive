@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"container/list"
 	"context"
 	"sync"
 	"time"
@@ -29,9 +30,11 @@ type ClientCache interface {
 
 // cacheEntry represents a single cached client with metadata.
 type cacheEntry struct {
+	key        string        // cache key
 	client     client.Client
 	created    time.Time
 	lastAccess time.Time
+	element    *list.Element // position in LRU list
 }
 
 // lruCache implements ClientCache with LRU eviction and TTL expiration.
@@ -41,17 +44,12 @@ type lruCache struct {
 	// entries maps cache keys to cached clients
 	entries map[string]*cacheEntry
 
-	// accessOrder maintains LRU ordering (oldest access first)
-	accessOrder []string
+	// accessOrder maintains LRU ordering (front = oldest, back = newest)
+	accessOrder *list.List
 
 	// Configuration
 	maxSize int
 	ttl     time.Duration
-
-	// Statistics
-	hits      int64
-	misses    int64
-	evictions int64
 }
 
 // CacheOption is a functional option for configuring the cache.
@@ -79,7 +77,7 @@ func WithTTL(duration time.Duration) CacheOption {
 func NewCache(opts ...CacheOption) ClientCache {
 	c := &lruCache{
 		entries:     make(map[string]*cacheEntry),
-		accessOrder: make([]string, 0),
+		accessOrder: list.New(),
 		maxSize:     500,              // Default max size
 		ttl:         10 * time.Minute, // Default TTL
 	}
@@ -110,11 +108,10 @@ func (c *lruCache) Get(ctx context.Context, key CacheKey, factory ClientFactory)
 			c.mu.Unlock()
 			exists = false
 		} else {
-			// Cache hit - update access time and statistics
+			// Cache hit - update access time
 			c.mu.Lock()
 			entry.lastAccess = time.Now()
 			c.updateAccessOrderLocked(keyStr)
-			c.hits++
 			cacheSize := len(c.entries)
 			c.mu.Unlock()
 
@@ -127,10 +124,6 @@ func (c *lruCache) Get(ctx context.Context, key CacheKey, factory ClientFactory)
 	}
 
 	// Cache miss - create new client
-	c.mu.Lock()
-	c.misses++
-	c.mu.Unlock()
-
 	// Record cache miss metrics
 	metrics.RecordCacheMiss(controllerName)
 
@@ -158,12 +151,14 @@ func (c *lruCache) Get(ctx context.Context, key CacheKey, factory ClientFactory)
 	}
 
 	// Add new entry
-	c.entries[keyStr] = &cacheEntry{
+	newEntry := &cacheEntry{
+		key:        keyStr,
 		client:     newClient,
 		created:    time.Now(),
 		lastAccess: time.Now(),
 	}
-	c.accessOrder = append(c.accessOrder, keyStr)
+	newEntry.element = c.accessOrder.PushBack(newEntry)
+	c.entries[keyStr] = newEntry
 
 	// Record cache size after adding new entry
 	metrics.RecordCacheSize(controllerName, len(c.entries))
@@ -174,48 +169,40 @@ func (c *lruCache) Get(ctx context.Context, key CacheKey, factory ClientFactory)
 // evictOldestLocked evicts the least recently used entry.
 // Must be called with lock held.
 func (c *lruCache) evictOldestLocked(controllerName string) {
-	if len(c.accessOrder) == 0 {
+	oldest := c.accessOrder.Front()
+	if oldest == nil {
 		return
 	}
 
-	// First entry in accessOrder is the oldest
-	oldestKey := c.accessOrder[0]
-	c.evictLocked(oldestKey, "lru", controllerName)
+	// Front of list is the oldest entry
+	entry := oldest.Value.(*cacheEntry)
+	c.evictLocked(entry.key, "lru", controllerName)
 }
 
 // evictLocked removes an entry from the cache.
 // Must be called with lock held.
 func (c *lruCache) evictLocked(key string, reason string, controllerName string) {
-	if _, exists := c.entries[key]; !exists {
+	entry, exists := c.entries[key]
+	if !exists {
 		return
 	}
 
 	delete(c.entries, key)
-	c.evictions++
 
 	// Record eviction metrics
 	metrics.RecordEviction(controllerName, reason)
 
 	// Remove from access order
-	for i, k := range c.accessOrder {
-		if k == key {
-			c.accessOrder = append(c.accessOrder[:i], c.accessOrder[i+1:]...)
-			break
-		}
+	if entry.element != nil {
+		c.accessOrder.Remove(entry.element)
 	}
 }
 
-// updateAccessOrderLocked moves a key to the end of the access order (most recently used).
+// updateAccessOrderLocked moves an entry to the end of the access order (most recently used).
 // Must be called with lock held.
 func (c *lruCache) updateAccessOrderLocked(key string) {
-	// Find and remove the key from its current position
-	for i, k := range c.accessOrder {
-		if k == key {
-			c.accessOrder = append(c.accessOrder[:i], c.accessOrder[i+1:]...)
-			break
-		}
+	entry := c.entries[key]
+	if entry != nil && entry.element != nil {
+		c.accessOrder.MoveToBack(entry.element)
 	}
-
-	// Add to end (most recently used)
-	c.accessOrder = append(c.accessOrder, key)
 }

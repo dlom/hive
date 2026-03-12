@@ -72,9 +72,5 @@ func WrapClusterError(err error, clusterID, operation string, gvk schema.GroupVe
 
 // AsClusterError is a convenience wrapper for errors.As for ClusterError
 func AsClusterError(err error, target **ClusterError) bool {
-	if err == nil {
-		return false
-	}
-	*target = &ClusterError{}
 	return stderr.As(err, target)
 }

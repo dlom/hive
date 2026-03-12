@@ -72,10 +72,6 @@ var (
 
 // Metrics functions
 var (
-	RecordCacheHit  = metrics.RecordCacheHit
-	RecordCacheMiss = metrics.RecordCacheMiss
-	RecordCacheSize = metrics.RecordCacheSize
-	RecordEviction  = metrics.RecordEviction
 	RecordOperation = metrics.RecordOperation
 
 	AddControllerMetricsTransportWrapper = metrics.AddControllerMetricsTransportWrapper
