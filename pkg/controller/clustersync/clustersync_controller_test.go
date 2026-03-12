@@ -2452,10 +2452,10 @@ func (m *applyMatcher) Matches(x any) bool {
 			return false
 		}
 	case *unstructured.Unstructured:
-		// V2 API passes unstructured directly
+		// API passes unstructured directly
 		u = v
 	case runtime.Object:
-		// V2 API can pass any runtime.Object
+		// API can pass any runtime.Object
 		objMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(v)
 		if err != nil {
 			return false
@@ -2515,12 +2515,12 @@ func (m *yamlApplyMatcher) Matches(x any) bool {
 		// V1 API passed bytes
 		bytes = v
 	case *unstructured.Unstructured:
-		// V2 API passes unstructured directly
+		// API passes unstructured directly
 		var err error
 		bytes, err = json.Marshal(v)
 		assert.NoError(m.t, err, "Failed to marshal unstructured to JSON")
 	case runtime.Object:
-		// V2 API can pass any runtime.Object
+		// API can pass any runtime.Object
 		var err error
 		bytes, err = json.Marshal(v)
 		assert.NoError(m.t, err, "Failed to marshal runtime.Object to JSON")

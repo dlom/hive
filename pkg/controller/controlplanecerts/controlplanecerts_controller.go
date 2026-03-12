@@ -84,7 +84,7 @@ func NewReconciler(mgr manager.Manager, rateLimiter flowcontrol.RateLimiter) rec
 	logger := log.WithField("controller", ControllerName)
 	localClient := controllerutils.NewClientWithMetricsOrDie(mgr, ControllerName, &rateLimiter)
 
-	// V2: Create helper with local client for Server-Side Apply
+	// Create helper with local client for Server-Side Apply
 	helper, err := resource.NewHelper(
 		logger,
 		resource.WithClient(localClient),
@@ -228,7 +228,7 @@ func (r *ReconcileControlPlaneCerts) Reconcile(ctx context.Context, request reco
 		return reconcile.Result{}, err
 	}
 
-	// V2: Use Apply with context and structured results
+	// Use Apply with context and structured results
 	_, err = r.applier.Apply(context.TODO(), desiredSyncSet)
 	if err != nil {
 		cdLog.WithError(err).Error("failed to apply control plane certificates syncset")

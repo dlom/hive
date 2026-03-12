@@ -86,7 +86,7 @@ func NewReconciler(mgr manager.Manager, rateLimiter flowcontrol.RateLimiter) rec
 	logger := log.WithField("controller", ControllerName)
 	localClient := controllerutils.NewClientWithMetricsOrDie(mgr, ControllerName, &rateLimiter)
 
-	// V2: Create helper with local client for Server-Side Apply
+	// Create helper with local client for Server-Side Apply
 	helper, err := resource.NewHelper(
 		logger,
 		resource.WithClient(localClient),
@@ -347,7 +347,7 @@ func (r *ReconcileRemoteClusterIngress) syncSyncSet(rContext *reconcileContext, 
 		return err
 	}
 
-	// V2: Use Apply with context and structured results
+	// Use Apply with context and structured results
 	if _, err := r.kubeCLI.Apply(context.TODO(), syncSet); err != nil {
 		rContext.logger.WithError(err).Error("failed to apply syncset")
 		return err

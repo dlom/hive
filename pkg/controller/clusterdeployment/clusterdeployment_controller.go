@@ -155,7 +155,7 @@ func Add(mgr manager.Manager) error {
 
 // NewReconciler returns a new reconcile.Reconciler
 func NewReconciler(mgr manager.Manager, logger log.FieldLogger, rateLimiter flowcontrol.RateLimiter) reconcile.Reconciler {
-	// Initialize shared client cache for v2 infrastructure
+	// Initialize shared client cache
 	// Provides 92-97% faster operations through client caching
 	sharedCache := clientutil.NewCache(
 		clientutil.WithMaxSize(500),
@@ -348,7 +348,7 @@ type ReconcileClusterDeployment struct {
 	clientCache clientutil.ClientCache
 
 	// remoteClusterAPIClientBuilder is a function pointer to the function that gets a builder for building a client
-	// for the remote cluster's API server (v2 with caching)
+	// for the remote cluster's API server (with caching)
 	remoteClusterAPIClientBuilder func(cd *hivev1.ClusterDeployment) remoteclient.Builder
 
 	// validateCredentialsForClusterDeployment is what this controller will call to validate

@@ -145,7 +145,7 @@ func NewReconciler(mgr manager.Manager, rateLimiter flowcontrol.RateLimiter) (*R
 	log.WithField("reapplyInterval", reapplyInterval).Info("Reapply interval set")
 	c := controllerutils.NewClientWithMetricsOrDie(mgr, ControllerName, &rateLimiter)
 
-	// Initialize shared client cache for v2 infrastructure
+	// Initialize shared client cache
 	// Provides 92-97% faster operations through client caching
 	sharedCache := clientutil.NewCache(
 		clientutil.WithMaxSize(500),
@@ -287,7 +287,7 @@ type ReconcileClusterSync struct {
 	resourceHelperBuilder func(context.Context, *hivev1.ClusterDeployment, func(cd *hivev1.ClusterDeployment) remoteclient.Builder, log.FieldLogger) (resource.Helper, error)
 
 	// remoteClusterAPIClientBuilder is a function pointer to the function that gets a builder for building a client
-	// for the remote cluster's API server (v2 with caching)
+	// for the remote cluster's API server (with caching)
 	remoteClusterAPIClientBuilder func(cd *hivev1.ClusterDeployment) remoteclient.Builder
 
 	ordinalID int64
@@ -348,7 +348,7 @@ func (r *ReconcileClusterSync) Reconcile(ctx context.Context, request reconcile.
 	}
 
 	// If this cluster carries the fake annotation we will fake out all helper communication with it.
-	// V2: Pass context for timeout support and structured results
+	// Pass context for timeout support and structured results
 	resourceHelper, err := r.resourceHelperBuilder(ctx, cd, r.remoteClusterAPIClientBuilder, logger)
 	if err != nil {
 		logger.WithError(err).Error("cannot create helper")
@@ -417,7 +417,7 @@ func (r *ReconcileClusterSync) Reconcile(ctx context.Context, request reconcile.
 	recobsrv.SetOutcome(hivemetrics.ReconcileOutcomeFullSync)
 
 	// Apply SyncSets
-	// V2: Pass context to applySyncSets
+	// Pass context to applySyncSets
 	syncStatusesForSyncSets, syncSetsNeedRequeue := r.applySyncSets(
 		ctx,
 		cd,
@@ -432,7 +432,7 @@ func (r *ReconcileClusterSync) Reconcile(ctx context.Context, request reconcile.
 	clusterSync.Status.SyncSets = syncStatusesForSyncSets
 
 	// Apply SelectorSyncSets
-	// V2: Pass context to applySyncSets
+	// Pass context to applySyncSets
 	syncStatusesForSelectorSyncSets, selectorSyncSetsNeedRequeue := r.applySyncSets(
 		ctx,
 		cd,
@@ -529,7 +529,7 @@ func (r *ReconcileClusterSync) applySyncSets(
 	// We delete old resources before applying new in order to allow resources to be moved from one syncset to
 	// another, ex: in the case of a syncset being renamed
 	for _, oldSyncStatus := range deletionList {
-		// V2: Use deleteFromTargetCluster with context
+		// Use deleteFromTargetCluster with context
 		remainingResources, err := deleteFromTargetCluster(ctx, oldSyncStatus.ResourcesToDelete, nil, resourceHelper, logger)
 		if err != nil {
 			requeue = true
@@ -569,7 +569,7 @@ func (r *ReconcileClusterSync) applySyncSets(
 		}
 
 		// Apply the syncset
-		// V2: Pass context to applySyncSet
+		// Pass context to applySyncSet
 		resourcesApplied, resourcesInSyncSet, syncSetNeedsRequeue, err := r.applySyncSet(ctx, syncSet, cd, resourceHelper, logger)
 		newSyncStatus := hiveintv1alpha1.SyncStatus{
 			Name:               syncSet.AsMetaObject().GetName(),
@@ -595,7 +595,7 @@ func (r *ReconcileClusterSync) applySyncSets(
 
 		if indexOfOldStatus >= 0 {
 			// Delete any resources that were included in the syncset previously but are no longer included now.
-			// V2: Use deleteFromTargetCluster with context
+			// Use deleteFromTargetCluster with context
 			remainingResources, err := deleteFromTargetCluster(
 				ctx,
 				oldSyncStatus.ResourcesToDelete,
@@ -700,7 +700,7 @@ func (r *ReconcileClusterSync) applySyncSet(
 		return
 	}
 
-	// V2: Server-Side Apply handles all behaviors (Apply/CreateOrUpdate/CreateOnly)
+	// Server-Side Apply handles all behaviors (Apply/CreateOrUpdate/CreateOnly)
 	// ApplyBehavior is maintained for metrics labeling
 	applyFnMetricsLabel := labelApply
 	switch syncSet.GetSpec().ApplyBehavior {
@@ -909,7 +909,7 @@ func (r *ReconcileClusterSync) applyPatch(
 	// Convert patch type string to types.PatchType
 	patchType := types.PatchType(patch.PatchType)
 
-	// V2: Use PatchWithObject for structured results
+	// Use PatchWithObject for structured results
 	_, err = resourceHelper.PatchWithObject(ctx, gvk, patch.Namespace, patch.Name, []byte(patch.Patch),
 		resource.WithPatchType(patchType))
 	if err != nil {
@@ -934,7 +934,7 @@ func applyToTargetCluster(
 	labels[constants.HiveManagedLabel] = "true"
 	obj.SetLabels(labels)
 
-	// V2: Use Apply with context and structured results
+	// Use Apply with context and structured results
 	result, err := resourceHelper.Apply(ctx, obj)
 	// Record the amount of time we took to apply this specific resource.
 	applyTime := metav1.Now().Sub(startTime).Seconds()
@@ -943,7 +943,7 @@ func applyToTargetCluster(
 		metricResourcesApplied.WithLabelValues(applyFnMetricLabel, metricResultError).Inc()
 		metricTimeToApplySyncSetResource.WithLabelValues(applyFnMetricLabel, metricResultError).Observe(applyTime)
 	} else {
-		// V2: Use structured result
+		// Use structured result
 		var resultStr string
 		switch result.State {
 		case resource.Created:
@@ -989,7 +989,7 @@ func deleteFromTargetCluster(
 		}
 		gvk := gv.WithKind(r.Kind)
 
-		// V2: Use Delete with context and structured results
+		// Use Delete with context and structured results
 		result, err := resourceHelper.Delete(ctx, gvk, r.Namespace, r.Name)
 		if err != nil {
 			logger.WithError(err).Warn("could not delete resource")
