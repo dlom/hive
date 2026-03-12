@@ -13,6 +13,8 @@ import (
 	"github.com/openshift/hive/internal/clientutil"
 )
 
+//go:generate mockgen -source=./helper_v2.go -destination=./mock/helper_generated.go -package=mock
+
 // HelperV2 provides context-aware resource operations using Server-Side Apply.
 // It replaces the kubectl-dependent Helper interface with native Kubernetes client APIs.
 //
