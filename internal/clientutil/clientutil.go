@@ -67,6 +67,8 @@ var (
 var (
 	CopyConfigWithMetrics  = config.CopyConfigWithMetrics
 	PrepareConfigForClient = config.PrepareConfigForClient
+	RestConfigFromSecret   = config.RestConfigFromSecret
+	ValidateKubeconfig     = config.ValidateKubeconfig
 )
 
 // InitializeSharedCache creates the shared client cache used across all controllers.

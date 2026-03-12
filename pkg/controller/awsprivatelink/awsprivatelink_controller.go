@@ -38,6 +38,7 @@ import (
 
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	hivev1aws "github.com/openshift/hive/apis/hive/v1/aws"
+	"github.com/openshift/hive/internal/clientutil"
 	"github.com/openshift/hive/pkg/awsclient"
 	"github.com/openshift/hive/pkg/constants"
 	hivemetrics "github.com/openshift/hive/pkg/controller/metrics"
@@ -1367,7 +1368,7 @@ func initialURL(c client.Client, key client.ObjectKey) (string, error) {
 	); err != nil {
 		return "", err
 	}
-	cfg, err := controllerutils.RestConfigFromSecret(kubeconfigSecret, true)
+	cfg, err := clientutil.RestConfigFromSecret(kubeconfigSecret, true)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to load the kubeconfig")
 	}

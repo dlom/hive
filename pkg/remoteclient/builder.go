@@ -12,7 +12,6 @@ import (
 
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	"github.com/openshift/hive/internal/clientutil"
-	"github.com/openshift/hive/pkg/controller/utils"
 	"github.com/openshift/hive/pkg/util/scheme"
 )
 
@@ -94,7 +93,7 @@ func (b *builder) RESTConfigWithContext(ctx context.Context) (*rest.Config, erro
 	}
 
 	// Get unadulterated REST config from kubeconfig
-	cfg, err := utils.RestConfigFromSecret(secret, false)
+	cfg, err := clientutil.RestConfigFromSecret(secret, false)
 	if err != nil {
 		return nil, b.wrapError(err, "parse-kubeconfig")
 	}
@@ -186,7 +185,7 @@ func (b *builder) generateCacheKey(ctx context.Context) (clientutil.CacheKey, er
 	}
 
 	// Get REST config to extract the kubeconfig URL
-	cfg, err := utils.RestConfigFromSecret(secret, false)
+	cfg, err := clientutil.RestConfigFromSecret(secret, false)
 	if err != nil {
 		return clientutil.CacheKey{}, b.wrapError(err, "parse-kubeconfig-for-cache-key")
 	}

@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
+	"github.com/openshift/hive/internal/clientutil"
 	"github.com/openshift/hive/pkg/controller/utils"
 )
 
@@ -161,5 +162,5 @@ func unadulteratedRESTConfig(c client.Client, cd *hivev1.ClusterDeployment) (*re
 	); err != nil {
 		return nil, errors.Wrap(err, "could not get admin kubeconfig secret")
 	}
-	return utils.RestConfigFromSecret(kubeconfigSecret, false)
+	return clientutil.RestConfigFromSecret(kubeconfigSecret, false)
 }

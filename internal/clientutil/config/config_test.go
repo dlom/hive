@@ -6,9 +6,12 @@ import (
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
+	"github.com/openshift/hive/pkg/constants"
 )
 
 func TestCopyConfigWithMetrics_NilConfig(t *testing.T) {
@@ -223,3 +226,215 @@ func TestCreateDialerWithIPOverride_HasTimeout(t *testing.T) {
 	t.Logf("Dialer correctly timed out after %v", elapsed)
 }
 
+func TestRestConfigFromSecret_Success(t *testing.T) {
+	kubeconfigData := []byte(`apiVersion: v1
+clusters:
+- cluster:
+    server: https://api.example.com:6443
+  name: test-cluster
+contexts:
+- context:
+    cluster: test-cluster
+    user: admin
+  name: admin
+current-context: admin
+kind: Config
+preferences: {}
+users:
+- name: admin
+  user:
+    token: test-token
+`)
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-kubeconfig",
+			Namespace: "test-namespace",
+		},
+		Data: map[string][]byte{
+			constants.KubeconfigSecretKey: kubeconfigData,
+		},
+	}
+
+	cfg, err := RestConfigFromSecret(secret, false)
+	if err != nil {
+		t.Fatalf("RestConfigFromSecret() failed: %v", err)
+	}
+
+	if cfg.Host != "https://api.example.com:6443" {
+		t.Errorf("Host = %q, want %q", cfg.Host, "https://api.example.com:6443")
+	}
+
+	if cfg.BearerToken != "test-token" {
+		t.Errorf("BearerToken = %q, want %q", cfg.BearerToken, "test-token")
+	}
+}
+
+func TestRestConfigFromSecret_TryRaw(t *testing.T) {
+	kubeconfigData := []byte(`apiVersion: v1
+clusters:
+- cluster:
+    server: https://api.example.com:6443
+  name: test-cluster
+contexts:
+- context:
+    cluster: test-cluster
+    user: admin
+  name: admin
+current-context: admin
+kind: Config
+users:
+- name: admin
+  user:
+    token: test-token
+`)
+
+	rawKubeconfigData := []byte(`apiVersion: v1
+clusters:
+- cluster:
+    server: https://raw.example.com:6443
+  name: test-cluster
+contexts:
+- context:
+    cluster: test-cluster
+    user: admin
+  name: admin
+current-context: admin
+kind: Config
+users:
+- name: admin
+  user:
+    token: raw-test-token
+`)
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-kubeconfig",
+			Namespace: "test-namespace",
+		},
+		Data: map[string][]byte{
+			constants.KubeconfigSecretKey:    kubeconfigData,
+			constants.RawKubeconfigSecretKey: rawKubeconfigData,
+		},
+	}
+
+	// With tryRaw=true, should use raw-kubeconfig
+	cfg, err := RestConfigFromSecret(secret, true)
+	if err != nil {
+		t.Fatalf("RestConfigFromSecret(tryRaw=true) failed: %v", err)
+	}
+
+	if cfg.Host != "https://raw.example.com:6443" {
+		t.Errorf("Host = %q, want %q (should use raw-kubeconfig)", cfg.Host, "https://raw.example.com:6443")
+	}
+
+	// With tryRaw=false, should use kubeconfig
+	cfg, err = RestConfigFromSecret(secret, false)
+	if err != nil {
+		t.Fatalf("RestConfigFromSecret(tryRaw=false) failed: %v", err)
+	}
+
+	if cfg.Host != "https://api.example.com:6443" {
+		t.Errorf("Host = %q, want %q (should use kubeconfig)", cfg.Host, "https://api.example.com:6443")
+	}
+}
+
+func TestRestConfigFromSecret_EmptySecret(t *testing.T) {
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-kubeconfig",
+			Namespace: "test-namespace",
+		},
+		Data: map[string][]byte{},
+	}
+
+	_, err := RestConfigFromSecret(secret, false)
+	if err == nil {
+		t.Error("RestConfigFromSecret() with empty secret should fail")
+	}
+
+	expectedErr := "kubeconfig secret does not contain necessary data"
+	if err.Error() != expectedErr {
+		t.Errorf("Error = %q, want %q", err.Error(), expectedErr)
+	}
+}
+
+func TestValidateKubeconfig_InsecureExec(t *testing.T) {
+	// Kubeconfig with exec (HIVE-2485)
+	kubeconfigWithExec := []byte(`apiVersion: v1
+clusters:
+- cluster:
+    server: https://api.example.com:6443
+  name: test-cluster
+contexts:
+- context:
+    cluster: test-cluster
+    user: admin
+  name: admin
+current-context: admin
+kind: Config
+users:
+- name: admin
+  user:
+    exec:
+      command: /bin/sh
+      args:
+      - -c
+      - echo malicious
+`)
+
+	_, err := ValidateKubeconfig(kubeconfigWithExec)
+	if err == nil {
+		t.Error("ValidateKubeconfig() should fail for kubeconfig with exec")
+	}
+
+	if err.Error() != "insecure exec in AuthInfos[admin]" {
+		t.Errorf("Error = %q, want %q", err.Error(), "insecure exec in AuthInfos[admin]")
+	}
+}
+
+func TestValidateKubeconfig_Valid(t *testing.T) {
+	kubeconfigData := []byte(`apiVersion: v1
+clusters:
+- cluster:
+    server: https://api.example.com:6443
+  name: test-cluster
+contexts:
+- context:
+    cluster: test-cluster
+    user: admin
+  name: admin
+current-context: admin
+kind: Config
+users:
+- name: admin
+  user:
+    token: test-token
+`)
+
+	config, err := ValidateKubeconfig(kubeconfigData)
+	if err != nil {
+		t.Fatalf("ValidateKubeconfig() failed: %v", err)
+	}
+
+	if config == nil {
+		t.Error("ValidateKubeconfig() returned nil config")
+	}
+
+	if len(config.Clusters) != 1 {
+		t.Errorf("Clusters count = %d, want 1", len(config.Clusters))
+	}
+
+	if len(config.AuthInfos) != 1 {
+		t.Errorf("AuthInfos count = %d, want 1", len(config.AuthInfos))
+	}
+}
+
+func TestValidateKubeconfig_InvalidYAML(t *testing.T) {
+	invalidKubeconfig := []byte(`this is not valid yaml: [`)
+
+	_, err := ValidateKubeconfig(invalidKubeconfig)
+	if err == nil {
+		t.Error("ValidateKubeconfig() should fail for invalid YAML")
+	}
+}
