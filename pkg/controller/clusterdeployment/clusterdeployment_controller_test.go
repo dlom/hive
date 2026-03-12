@@ -3684,7 +3684,7 @@ platform:
 			}
 
 			if test.expectConsoleRouteFetch {
-				mockRemoteClientBuilder.EXPECT().Build().Return(testRemoteClusterAPIClient(), nil)
+				mockRemoteClientBuilder.EXPECT().BuildWithContext(gomock.Any()).Return(testRemoteClusterAPIClient(), nil)
 			}
 
 			result, err := rcd.Reconcile(context.TODO(), reconcileRequest)
@@ -5294,12 +5294,12 @@ platform:
 			mockRemoteClientBuilder := remoteclientmock.NewMockBuilder(mockCtrl)
 			switch test.configureRemoteClient {
 			case "true":
-				mockRemoteClientBuilder.EXPECT().Build().Return(
+				mockRemoteClientBuilder.EXPECT().BuildWithContext(gomock.Any()).Return(
 					testfake.NewFakeClientBuilder().WithRuntimeObjects(filterNils(test.infraObj)...).Build(),
 					nil,
 				)
 			case "error":
-				mockRemoteClientBuilder.EXPECT().Build().Return(nil, errors.New("couldn't build remote client"))
+				mockRemoteClientBuilder.EXPECT().BuildWithContext(gomock.Any()).Return(nil, errors.New("couldn't build remote client"))
 			}
 
 			r := &ReconcileClusterDeployment{

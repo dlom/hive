@@ -1390,7 +1390,7 @@ func TestRemoteMachineSetReconcile(t *testing.T) {
 			}
 
 			mockRemoteClientBuilder := remoteclientmock.NewMockBuilder(mockCtrl)
-			mockRemoteClientBuilder.EXPECT().Build().Return(remoteFakeClient, nil).AnyTimes()
+			mockRemoteClientBuilder.EXPECT().BuildWithContext(gomock.Any()).Return(remoteFakeClient, nil).AnyTimes()
 
 			logger := log.WithField("controller", "machinepool")
 			controllerExpectations := controllerutils.NewExpectations(logger)

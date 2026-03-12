@@ -827,7 +827,7 @@ func TestReconcileClusterRelocate_Reconcile_Movement(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 
 			mockRemoteClientBuilder := remoteclientmock.NewMockBuilder(mockCtrl)
-			mockRemoteClientBuilder.EXPECT().Build().Return(destClient, nil).AnyTimes()
+			mockRemoteClientBuilder.EXPECT().BuildWithContext(gomock.Any()).Return(destClient, nil).AnyTimes()
 
 			reconciler := &ReconcileClusterRelocate{
 				Client: srcClient,
@@ -1185,7 +1185,7 @@ func TestReconcileClusterRelocate_Reconcile_RelocateStatus(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 
 			mockRemoteClientBuilder := remoteclientmock.NewMockBuilder(mockCtrl)
-			mockRemoteClientBuilder.EXPECT().Build().Return(destClient, nil).AnyTimes()
+			mockRemoteClientBuilder.EXPECT().BuildWithContext(gomock.Any()).Return(destClient, nil).AnyTimes()
 
 			reconciler := &ReconcileClusterRelocate{
 				Client: srcClient,

@@ -66,7 +66,7 @@ var clusterDeploymentRemoteIngressConditions = []hivev1.ClusterDeploymentConditi
 
 // kubeCLIApplier knows how to Apply runtime objects.
 type kubeCLIApplier interface {
-	Apply(ctx context.Context, obj interface{}, opts ...resource.ApplyOption) (resource.ApplyResultV2, error)
+	Apply(ctx context.Context, obj interface{}, opts ...resource.ApplyOption) (resource.ApplyResult, error)
 }
 
 // Add creates a new RemoteIngress Controller and adds it to the Manager with default RBAC. The Manager will set fields on the
@@ -87,7 +87,7 @@ func NewReconciler(mgr manager.Manager, rateLimiter flowcontrol.RateLimiter) rec
 	localClient := controllerutils.NewClientWithMetricsOrDie(mgr, ControllerName, &rateLimiter)
 
 	// V2: Create helper with local client for Server-Side Apply
-	helper, err := resource.NewHelperV2(
+	helper, err := resource.NewHelper(
 		logger,
 		resource.WithClient(localClient),
 		resource.WithControllerName(ControllerName))

@@ -161,7 +161,7 @@ func TestClusterStateReconcile(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			mockRemoteClientBuilder := remoteclientmock.NewMockBuilder(mockCtrl)
 			if !test.noRemoteCall {
-				mockRemoteClientBuilder.EXPECT().Build().Return(testfake.NewFakeClientBuilder().WithRuntimeObjects(test.remote...).Build(), nil)
+				mockRemoteClientBuilder.EXPECT().BuildWithContext(gomock.Any()).Return(testfake.NewFakeClientBuilder().WithRuntimeObjects(test.remote...).Build(), nil)
 			}
 			updateCalled := false
 			rcd := &ReconcileClusterState{

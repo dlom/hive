@@ -409,7 +409,7 @@ func TestClusterVersionReconcile(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			mockRemoteClientBuilder := remoteclientmock.NewMockBuilder(mockCtrl)
 			if !test.noRemoteCall {
-				mockRemoteClientBuilder.EXPECT().Build().Return(testRemoteClusterAPIClient(test.clusterVersionStatus), nil)
+				mockRemoteClientBuilder.EXPECT().BuildWithContext(gomock.Any()).Return(testRemoteClusterAPIClient(test.clusterVersionStatus), nil)
 			}
 			rcd := &ReconcileClusterVersion{
 				Client:                        fakeClient,

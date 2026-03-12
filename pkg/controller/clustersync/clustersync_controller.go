@@ -157,7 +157,7 @@ func NewReconciler(mgr manager.Manager, rateLimiter flowcontrol.RateLimiter) (*R
 		logger:                logger,
 		clientCache:           sharedCache,
 		reapplyInterval:       reapplyInterval,
-		resourceHelperBuilder: resourceHelperBuilderFuncV2,
+		resourceHelperBuilder: resourceHelperBuilderFunc,
 		remoteClusterAPIClientBuilder: func(cd *hivev1.ClusterDeployment) remoteclient.Builder {
 			return remoteclient.NewBuilderWithOptions(
 				remoteclient.WithClusterDeployment(c, cd),
@@ -168,8 +168,8 @@ func NewReconciler(mgr manager.Manager, rateLimiter flowcontrol.RateLimiter) (*R
 	}, nil
 }
 
-// resourceHelperBuilderFuncV2 creates a v2 resource helper with Server-Side Apply and client caching
-func resourceHelperBuilderFuncV2(
+// resourceHelperBuilderFunc creates a resource helper with Server-Side Apply and client caching
+func resourceHelperBuilderFunc(
 	ctx context.Context,
 	cd *hivev1.ClusterDeployment,
 	remoteClusterAPIClientBuilderFunc func(cd *hivev1.ClusterDeployment) remoteclient.Builder,
@@ -283,7 +283,7 @@ type ReconcileClusterSync struct {
 	// clientCache provides shared client caching for 92-97% faster operations
 	clientCache clientutil.ClientCache
 
-	// resourceHelperBuilder creates a v2 resource helper with Server-Side Apply and context support
+	// resourceHelperBuilder creates a resource helper with Server-Side Apply and context support
 	resourceHelperBuilder func(context.Context, *hivev1.ClusterDeployment, func(cd *hivev1.ClusterDeployment) remoteclient.Builder, log.FieldLogger) (resource.Helper, error)
 
 	// remoteClusterAPIClientBuilder is a function pointer to the function that gets a builder for building a client
@@ -529,8 +529,8 @@ func (r *ReconcileClusterSync) applySyncSets(
 	// We delete old resources before applying new in order to allow resources to be moved from one syncset to
 	// another, ex: in the case of a syncset being renamed
 	for _, oldSyncStatus := range deletionList {
-		// V2: Use deleteFromTargetClusterV2 with context
-		remainingResources, err := deleteFromTargetClusterV2(ctx, oldSyncStatus.ResourcesToDelete, nil, resourceHelper, logger)
+		// V2: Use deleteFromTargetCluster with context
+		remainingResources, err := deleteFromTargetCluster(ctx, oldSyncStatus.ResourcesToDelete, nil, resourceHelper, logger)
 		if err != nil {
 			requeue = true
 			newSyncStatus := hiveintv1alpha1.SyncStatus{
@@ -595,8 +595,8 @@ func (r *ReconcileClusterSync) applySyncSets(
 
 		if indexOfOldStatus >= 0 {
 			// Delete any resources that were included in the syncset previously but are no longer included now.
-			// V2: Use deleteFromTargetClusterV2 with context
-			remainingResources, err := deleteFromTargetClusterV2(
+			// V2: Use deleteFromTargetCluster with context
+			remainingResources, err := deleteFromTargetCluster(
 				ctx,
 				oldSyncStatus.ResourcesToDelete,
 				func(r hiveintv1alpha1.SyncResourceReference) bool {
@@ -712,7 +712,7 @@ func (r *ReconcileClusterSync) applySyncSet(
 
 	// Apply Resources
 	for i, resource := range resources {
-		returnErr, requeue = r.applyResourceV2(ctx, i, resource, referencesToResources[i], resourceHelper, applyFnMetricsLabel, logger)
+		returnErr, requeue = r.applyResource(ctx, i, resource, referencesToResources[i], resourceHelper, applyFnMetricsLabel, logger)
 		if returnErr != nil {
 			resourcesApplied = referencesToResources[:i]
 			return
@@ -722,7 +722,7 @@ func (r *ReconcileClusterSync) applySyncSet(
 
 	// Apply Secrets
 	for i, secretMapping := range syncSet.GetSpec().Secrets {
-		returnErr, requeue = r.applySecretV2(ctx, syncSet, i, secretMapping, referencesToSecrets[i], resourceHelper, applyFnMetricsLabel, logger)
+		returnErr, requeue = r.applySecret(ctx, syncSet, i, secretMapping, referencesToSecrets[i], resourceHelper, applyFnMetricsLabel, logger)
 		if returnErr != nil {
 			resourcesApplied = append(resourcesApplied, referencesToSecrets[:i]...)
 			return
@@ -743,7 +743,7 @@ func (r *ReconcileClusterSync) applySyncSet(
 			}
 			patch.Patch = newPatch
 		}
-		returnErr, requeue = r.applyPatchV2(ctx, i, patch, resourceHelper, logger)
+		returnErr, requeue = r.applyPatch(ctx, i, patch, resourceHelper, logger)
 		if returnErr != nil {
 			return
 		}
@@ -801,9 +801,9 @@ func referencesToSecrets(syncSet CommonSyncSet) []hiveintv1alpha1.SyncResourceRe
 	return references
 }
 
-// V2 functions using Server-Side Apply with structured results
+// Functions using Server-Side Apply with structured results
 
-func (r *ReconcileClusterSync) applyResourceV2(
+func (r *ReconcileClusterSync) applyResource(
 	ctx context.Context,
 	resourceIndex int,
 	resource *unstructured.Unstructured,
@@ -818,13 +818,13 @@ func (r *ReconcileClusterSync) applyResourceV2(
 		WithField("resourceAPIVersion", reference.APIVersion).
 		WithField("resourceKind", reference.Kind)
 	logger.Debug("applying resource")
-	if err := applyToTargetClusterV2(ctx, resource, applyFnMetricsLabel, resourceHelper, logger); err != nil {
+	if err := applyToTargetCluster(ctx, resource, applyFnMetricsLabel, resourceHelper, logger); err != nil {
 		return errors.Wrapf(err, "failed to apply resource %d", resourceIndex), true
 	}
 	return nil, false
 }
 
-func (r *ReconcileClusterSync) applySecretV2(
+func (r *ReconcileClusterSync) applySecret(
 	ctx context.Context,
 	syncSet CommonSyncSet,
 	secretIndex int,
@@ -879,13 +879,13 @@ func (r *ReconcileClusterSync) applySecretV2(
 	logger = logger.WithField("targetSecretNamespace", targetSecret.Namespace).
 		WithField("targetSecretName", targetSecret.Name)
 	logger.Debug("applying secret")
-	if err := applyToTargetClusterV2(ctx, targetSecret, applyFnMetricsLabel, resourceHelper, logger); err != nil {
+	if err := applyToTargetCluster(ctx, targetSecret, applyFnMetricsLabel, resourceHelper, logger); err != nil {
 		return errors.Wrapf(err, "failed to apply secret %d", secretIndex), true
 	}
 	return nil, false
 }
 
-func (r *ReconcileClusterSync) applyPatchV2(
+func (r *ReconcileClusterSync) applyPatch(
 	ctx context.Context,
 	patchIndex int,
 	patch hivev1.SyncObjectPatch,
@@ -918,7 +918,7 @@ func (r *ReconcileClusterSync) applyPatchV2(
 	return nil, false
 }
 
-func applyToTargetClusterV2(
+func applyToTargetCluster(
 	ctx context.Context,
 	obj hivev1.MetaRuntimeObject,
 	applyFnMetricLabel string,
@@ -960,7 +960,7 @@ func applyToTargetClusterV2(
 	return err
 }
 
-func deleteFromTargetClusterV2(
+func deleteFromTargetCluster(
 	ctx context.Context,
 	resources []hiveintv1alpha1.SyncResourceReference,
 	shouldDelete func(hiveintv1alpha1.SyncResourceReference) bool,

@@ -371,7 +371,7 @@ func TestReconcile(t *testing.T) {
 				objs = append(objs, readyNodes()...)
 				objs = append(objs, readyClusterOperators()...)
 				c := testfake.NewFakeClientBuilder().WithRuntimeObjects(objs...).Build()
-				builder.EXPECT().Build().Times(1).Return(c, nil)
+				builder.EXPECT().BuildWithContext(gomock.Any()).Times(1).Return(c, nil)
 			},
 			validate: func(t *testing.T, cd *hivev1.ClusterDeployment) {
 				assert.Equal(t, hivev1.ClusterPowerStatePausingForClusterOperatorsToSettle, cd.Status.PowerState)
@@ -393,7 +393,7 @@ func TestReconcile(t *testing.T) {
 				objs := []runtime.Object{}
 				objs = append(objs, readyNodes()...)
 				c := testfake.NewFakeClientBuilder().WithRuntimeObjects(objs...).Build()
-				builder.EXPECT().Build().Times(1).Return(c, nil)
+				builder.EXPECT().BuildWithContext(gomock.Any()).Times(1).Return(c, nil)
 			},
 			validate: func(t *testing.T, cd *hivev1.ClusterDeployment) {
 				assert.Equal(t, hivev1.ClusterPowerStatePausingForClusterOperatorsToSettle, cd.Status.PowerState)
@@ -415,7 +415,7 @@ func TestReconcile(t *testing.T) {
 				objs := []runtime.Object{}
 				objs = append(objs, readyNodes()...)
 				c := testfake.NewFakeClientBuilder().WithRuntimeObjects(objs...).Build()
-				builder.EXPECT().Build().Times(1).Return(c, nil)
+				builder.EXPECT().BuildWithContext(gomock.Any()).Times(1).Return(c, nil)
 			},
 			validate: func(t *testing.T, cd *hivev1.ClusterDeployment) {
 				assert.Equal(t, hivev1.ClusterPowerStatePausingForClusterOperatorsToSettle, cd.Status.PowerState)
@@ -437,7 +437,7 @@ func TestReconcile(t *testing.T) {
 				objs := []runtime.Object{}
 				objs = append(objs, readyNodes()...)
 				c := testfake.NewFakeClientBuilder().WithRuntimeObjects(objs...).Build()
-				builder.EXPECT().Build().Times(1).Return(c, nil)
+				builder.EXPECT().BuildWithContext(gomock.Any()).Times(1).Return(c, nil)
 			},
 			validate: func(t *testing.T, cd *hivev1.ClusterDeployment) {
 				assert.Equal(t, hivev1.ClusterPowerStatePausingForClusterOperatorsToSettle, cd.Status.PowerState)
@@ -663,8 +663,8 @@ func TestReconcile(t *testing.T) {
 			setupRemote: func(builder *remoteclientmock.MockBuilder) {
 				fakeClient := testfake.NewFakeClientBuilder().WithRuntimeObjects(unreadyNode()...).Build()
 				fakeKubeClient := fakekubeclient.NewSimpleClientset()
-				builder.EXPECT().Build().Times(1).Return(fakeClient, nil)
-				builder.EXPECT().BuildKubeClient().Times(1).Return(fakeKubeClient, nil)
+				builder.EXPECT().BuildWithContext(gomock.Any()).Times(1).Return(fakeClient, nil)
+				builder.EXPECT().BuildKubeClientWithContext(gomock.Any()).Times(1).Return(fakeKubeClient, nil)
 			},
 			validate: func(t *testing.T, cd *hivev1.ClusterDeployment) {
 				cond, runCond := getHibernatingAndRunningConditions(cd)
@@ -690,8 +690,8 @@ func TestReconcile(t *testing.T) {
 			setupRemote: func(builder *remoteclientmock.MockBuilder) {
 				fakeClient := testfake.NewFakeClientBuilder().WithRuntimeObjects(unreadyNode()...).Build()
 				fakeKubeClient := fakekubeclient.NewSimpleClientset(csrs()...)
-				builder.EXPECT().Build().Times(1).Return(fakeClient, nil)
-				builder.EXPECT().BuildKubeClient().Times(1).Return(fakeKubeClient, nil)
+				builder.EXPECT().BuildWithContext(gomock.Any()).Times(1).Return(fakeClient, nil)
+				builder.EXPECT().BuildKubeClientWithContext(gomock.Any()).Times(1).Return(fakeKubeClient, nil)
 			},
 			setupCSRHelper: func(helper *mock.MockcsrHelper) {
 				count := len(csrs())
@@ -738,7 +738,7 @@ func TestReconcile(t *testing.T) {
 				objs = append(objs, readyNodes()...)
 				objs = append(objs, readyClusterOperators()...)
 				c := testfake.NewFakeClientBuilder().WithRuntimeObjects(objs...).Build()
-				builder.EXPECT().Build().Times(1).Return(c, nil)
+				builder.EXPECT().BuildWithContext(gomock.Any()).Times(1).Return(c, nil)
 			},
 			validate: func(t *testing.T, cd *hivev1.ClusterDeployment) {
 				cond, runCond := getHibernatingAndRunningConditions(cd)
@@ -779,7 +779,7 @@ func TestReconcile(t *testing.T) {
 				objs = append(objs, readyNodes()...)
 				objs = append(objs, degradedClusterOperators()...)
 				c := testfake.NewFakeClientBuilder().WithRuntimeObjects(objs...).Build()
-				builder.EXPECT().Build().Times(1).Return(c, nil)
+				builder.EXPECT().BuildWithContext(gomock.Any()).Times(1).Return(c, nil)
 			},
 			validate: func(t *testing.T, cd *hivev1.ClusterDeployment) {
 				cond, runCond := getHibernatingAndRunningConditions(cd)
@@ -819,7 +819,7 @@ func TestReconcile(t *testing.T) {
 				objs = append(objs, readyNodes()...)
 				objs = append(objs, degradedClusterOperators()...)
 				c := testfake.NewFakeClientBuilder().WithRuntimeObjects(objs...).Build()
-				builder.EXPECT().Build().Times(1).Return(c, nil)
+				builder.EXPECT().BuildWithContext(gomock.Any()).Times(1).Return(c, nil)
 			},
 			validate: func(t *testing.T, cd *hivev1.ClusterDeployment) {
 				cond, runCond := getHibernatingAndRunningConditions(cd)
@@ -861,7 +861,7 @@ func TestReconcile(t *testing.T) {
 				// Prove we're skipping these
 				objs = append(objs, degradedClusterOperators()...)
 				c := testfake.NewFakeClientBuilder().WithRuntimeObjects(objs...).Build()
-				builder.EXPECT().Build().Times(1).Return(c, nil)
+				builder.EXPECT().BuildWithContext(gomock.Any()).Times(1).Return(c, nil)
 			},
 			validate: func(t *testing.T, cd *hivev1.ClusterDeployment) {
 				cond, runCond := getHibernatingAndRunningConditions(cd)
@@ -900,7 +900,7 @@ func TestReconcile(t *testing.T) {
 				objs = append(objs, readyNodes()...)
 				objs = append(objs, readyClusterOperators()...)
 				c := testfake.NewFakeClientBuilder().WithRuntimeObjects(objs...).Build()
-				builder.EXPECT().Build().Times(1).Return(c, nil)
+				builder.EXPECT().BuildWithContext(gomock.Any()).Times(1).Return(c, nil)
 			},
 			validate: func(t *testing.T, cd *hivev1.ClusterDeployment) {
 				cond, runCond := getHibernatingAndRunningConditions(cd)
