@@ -155,12 +155,9 @@ func Add(mgr manager.Manager) error {
 
 // NewReconciler returns a new reconcile.Reconciler
 func NewReconciler(mgr manager.Manager, logger log.FieldLogger, rateLimiter flowcontrol.RateLimiter) reconcile.Reconciler {
-	// Initialize shared client cache
+	// Use shared client cache across all controllers
 	// Provides 92-97% faster operations through client caching
-	sharedCache := clientutil.NewCache(
-		clientutil.WithMaxSize(500),
-		clientutil.WithTTL(10*time.Minute),
-	)
+	sharedCache := clientutil.GetSharedCache()
 
 	r := &ReconcileClusterDeployment{
 		Manager:                                 mgr,

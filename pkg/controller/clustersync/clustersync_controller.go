@@ -145,12 +145,9 @@ func NewReconciler(mgr manager.Manager, rateLimiter flowcontrol.RateLimiter) (*R
 	log.WithField("reapplyInterval", reapplyInterval).Info("Reapply interval set")
 	c := controllerutils.NewClientWithMetricsOrDie(mgr, ControllerName, &rateLimiter)
 
-	// Initialize shared client cache
+	// Use shared client cache across all controllers
 	// Provides 92-97% faster operations through client caching
-	sharedCache := clientutil.NewCache(
-		clientutil.WithMaxSize(500),
-		clientutil.WithTTL(10*time.Minute),
-	)
+	sharedCache := clientutil.GetSharedCache()
 
 	return &ReconcileClusterSync{
 		Client:                c,

@@ -61,12 +61,9 @@ func Add(mgr manager.Manager) error {
 	}
 	logger.Infof("using poll interval of %s", pollInterval)
 
-	// Initialize shared client cache
+	// Use shared client cache across all controllers
 	// Provides 92-97% faster operations through client caching
-	sharedCache := clientutil.NewCache(
-		clientutil.WithMaxSize(500),
-		clientutil.WithTTL(10*time.Minute),
-	)
+	sharedCache := clientutil.GetSharedCache()
 
 	r := &ReconcileClusterVersion{
 		Client:       controllerutils.NewClientWithMetricsOrDie(mgr, ControllerName, &clientRateLimiter),

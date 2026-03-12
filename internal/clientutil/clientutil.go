@@ -4,12 +4,21 @@ package clientutil
 // for convenient access.
 
 import (
+	"sync"
+	"time"
+
 	"github.com/openshift/hive/internal/clientutil/cache"
 	"github.com/openshift/hive/internal/clientutil/config"
 	"github.com/openshift/hive/internal/clientutil/discovery"
 	"github.com/openshift/hive/internal/clientutil/errors"
 	"github.com/openshift/hive/internal/clientutil/fieldmanager"
 	"github.com/openshift/hive/internal/clientutil/metrics"
+)
+
+var (
+	sharedCache     ClientCache
+	sharedCacheMu   sync.RWMutex
+	sharedCacheOnce sync.Once
 )
 
 // Cache types and functions
@@ -104,3 +113,37 @@ var (
 
 	AddControllerMetricsTransportWrapper = metrics.AddControllerMetricsTransportWrapper
 )
+
+// InitializeSharedCache creates the shared client cache used across all controllers.
+// This should be called once during application startup (e.g., in main.go).
+// If not called, GetSharedCache() will create a default cache on first use.
+func InitializeSharedCache(opts ...CacheOption) {
+	sharedCacheMu.Lock()
+	defer sharedCacheMu.Unlock()
+	sharedCache = NewCache(opts...)
+}
+
+// GetSharedCache returns the shared client cache instance.
+// If no cache has been initialized, creates a default cache with:
+//   - Max size: 500 clients
+//   - TTL: 10 minutes
+//
+// All controllers should use this shared cache for optimal memory usage
+// and cache hit rates across the entire application.
+func GetSharedCache() ClientCache {
+	sharedCacheOnce.Do(func() {
+		sharedCacheMu.Lock()
+		defer sharedCacheMu.Unlock()
+		if sharedCache == nil {
+			// Default configuration if not explicitly initialized
+			sharedCache = NewCache(
+				WithMaxSize(500),
+				WithTTL(10*time.Minute),
+			)
+		}
+	})
+
+	sharedCacheMu.RLock()
+	defer sharedCacheMu.RUnlock()
+	return sharedCache
+}

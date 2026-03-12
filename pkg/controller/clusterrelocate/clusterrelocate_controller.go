@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -87,12 +86,9 @@ func Add(mgr manager.Manager) error {
 		return err
 	}
 
-	// Initialize shared client cache
+	// Use shared client cache across all controllers
 	// Provides 92-97% faster operations through client caching
-	sharedCache := clientutil.NewCache(
-		clientutil.WithMaxSize(500),
-		clientutil.WithTTL(10*time.Minute),
-	)
+	sharedCache := clientutil.GetSharedCache()
 
 	r := &ReconcileClusterRelocate{
 		Client:      controllerutils.NewClientWithMetricsOrDie(mgr, ControllerName, &clientRateLimiter),
