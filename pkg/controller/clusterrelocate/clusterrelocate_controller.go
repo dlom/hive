@@ -99,8 +99,8 @@ func Add(mgr manager.Manager) error {
 		logger:      logger,
 		clientCache: sharedCache,
 	}
-	r.remoteClusterAPIClientBuilder = func(secret *corev1.Secret, controllerName hivev1.ControllerName) remoteclient.BuilderV2 {
-		return remoteclient.NewBuilderFromKubeconfigV2(
+	r.remoteClusterAPIClientBuilder = func(secret *corev1.Secret, controllerName hivev1.ControllerName) remoteclient.Builder {
+		return remoteclient.NewBuilderFromKubeconfig(
 			remoteclient.WithKubeconfigSecret(secret),
 			remoteclient.WithControllerName(ControllerName),
 			remoteclient.WithCache(sharedCache),
@@ -173,7 +173,7 @@ type ReconcileClusterRelocate struct {
 
 	// remoteClusterAPIClientBuilder is a function pointer to the function that gets a builder for building a client
 	// for the remote cluster's API server (v2 with caching)
-	remoteClusterAPIClientBuilder func(secret *corev1.Secret, controllerName hivev1.ControllerName) remoteclient.BuilderV2
+	remoteClusterAPIClientBuilder func(secret *corev1.Secret, controllerName hivev1.ControllerName) remoteclient.Builder
 }
 
 // Reconcile relocates ClusterDeployments matching with a ClusterRelocate to another Hive instance.
@@ -301,7 +301,7 @@ func (r *ReconcileClusterRelocate) reconcileSingleMatch(cd *hivev1.ClusterDeploy
 		return reconcile.Result{}, errors.Wrap(err, "failed to get kubeconfig secret")
 	}
 
-	destClient, err := r.remoteClusterAPIClientBuilder(kubeconfigSecret, ControllerName).Build()
+	destClient, err := r.remoteClusterAPIClientBuilder(kubeconfigSecret, ControllerName).BuildWithContext(context.Background())
 	if err != nil {
 		logger.WithError(err).Warn("could not create a client for the destination cluster")
 		r.setRelocationFailedCondition(

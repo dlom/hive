@@ -32,13 +32,13 @@ func TestNewBuilder(t *testing.T) {
 	c := fakeClient(cd)
 	controllerName := testControllerName
 
-	// NewBuilder now returns BuilderV2, verify it implements Builder interface
+	// NewBuilder returns Builder interface
 	actual := NewBuilder(c, cd, controllerName)
 	assert.NotNil(t, actual, "builder should not be nil")
 
-	// Verify it's actually a BuilderV2 by type assertion
-	_, ok := actual.(BuilderV2)
-	assert.True(t, ok, "NewBuilder should return a BuilderV2")
+	// Verify it implements Builder interface
+	_, ok := actual.(Builder)
+	assert.True(t, ok, "NewBuilder should return a Builder")
 }
 
 func Test_InitialURL(t *testing.T) {
@@ -133,11 +133,11 @@ func Test_builder_RESTConfig(t *testing.T) {
 			builder := NewBuilder(c, cd, "test-controller-name")
 			switch {
 			case tc.usePrimary:
-				builder.UsePrimaryAPIURL()
+				builder = builder.UsePrimaryAPIURL()
 			case tc.useSecondary:
-				builder.UseSecondaryAPIURL()
+				builder = builder.UseSecondaryAPIURL()
 			}
-			cfg, err := builder.RESTConfig()
+			cfg, err := builder.RESTConfigWithContext(context.Background())
 			assert.NoError(t, err, "unexpected error getting REST config")
 			assert.Equal(t, tc.expectedHost, cfg.Host, "unexpected host")
 
@@ -226,11 +226,11 @@ func Test_builder_Build(t *testing.T) {
 			builder := NewBuilder(c, cd, "test-controller-name")
 			var err error
 			if !tc.dynamic {
-				// Build is expected to fail due to "no such host" error, as the Build() method
+				// BuildWithContext is expected to fail due to "no such host" error, as the BuildWithContext() method
 				// is responsible for testing reachability.
-				_, err = builder.Build()
+				_, err = builder.BuildWithContext(context.Background())
 			} else {
-				rc, buildErr := builder.BuildDynamic()
+				rc, buildErr := builder.BuildDynamicWithContext(context.Background())
 				assert.NoError(t, buildErr, "unexpected error building dynamic client")
 				_, err = rc.Resource(hivev1.Resource("ClusterDeployment").WithVersion("v1")).
 					Get(context.Background(), "bad-name", metav1.GetOptions{})

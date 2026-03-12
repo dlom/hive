@@ -74,8 +74,8 @@ func Add(mgr manager.Manager) error {
 		clientCache:  sharedCache,
 		pollInterval: pollInterval,
 	}
-	r.remoteClusterAPIClientBuilder = func(cd *hivev1.ClusterDeployment) remoteclient.BuilderV2 {
-		return remoteclient.NewBuilderV2(
+	r.remoteClusterAPIClientBuilder = func(cd *hivev1.ClusterDeployment) remoteclient.Builder {
+		return remoteclient.NewBuilderWithOptions(
 			remoteclient.WithClusterDeployment(r.Client, cd),
 			remoteclient.WithControllerName(ControllerName),
 			remoteclient.WithCache(sharedCache),
@@ -117,7 +117,7 @@ type ReconcileClusterVersion struct {
 
 	// remoteClusterAPIClientBuilder is a function pointer to the function that gets a builder for building a client
 	// for the remote cluster's API server (v2 with caching)
-	remoteClusterAPIClientBuilder func(cd *hivev1.ClusterDeployment) remoteclient.BuilderV2
+	remoteClusterAPIClientBuilder func(cd *hivev1.ClusterDeployment) remoteclient.Builder
 
 	// pollInterval is the maximum time we'll wait before re-reconciling a given ClusterDeployment.
 	// Zero to disable (re-reconcile will be prompted by the usual things, e.g. CR updates).

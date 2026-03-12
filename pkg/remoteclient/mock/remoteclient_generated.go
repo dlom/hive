@@ -5,6 +5,7 @@
 package mock
 
 import (
+	context "context"
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
@@ -38,64 +39,64 @@ func (m *MockBuilder) EXPECT() *MockBuilderMockRecorder {
 	return m.recorder
 }
 
-// Build mocks base method.
-func (m *MockBuilder) Build() (client.Client, error) {
+// BuildDynamicWithContext mocks base method.
+func (m *MockBuilder) BuildDynamicWithContext(ctx context.Context) (dynamic.Interface, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Build")
-	ret0, _ := ret[0].(client.Client)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Build indicates an expected call of Build.
-func (mr *MockBuilderMockRecorder) Build() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Build", reflect.TypeOf((*MockBuilder)(nil).Build))
-}
-
-// BuildDynamic mocks base method.
-func (m *MockBuilder) BuildDynamic() (dynamic.Interface, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BuildDynamic")
+	ret := m.ctrl.Call(m, "BuildDynamicWithContext", ctx)
 	ret0, _ := ret[0].(dynamic.Interface)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// BuildDynamic indicates an expected call of BuildDynamic.
-func (mr *MockBuilderMockRecorder) BuildDynamic() *gomock.Call {
+// BuildDynamicWithContext indicates an expected call of BuildDynamicWithContext.
+func (mr *MockBuilderMockRecorder) BuildDynamicWithContext(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BuildDynamic", reflect.TypeOf((*MockBuilder)(nil).BuildDynamic))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BuildDynamicWithContext", reflect.TypeOf((*MockBuilder)(nil).BuildDynamicWithContext), ctx)
 }
 
-// BuildKubeClient mocks base method.
-func (m *MockBuilder) BuildKubeClient() (kubernetes.Interface, error) {
+// BuildKubeClientWithContext mocks base method.
+func (m *MockBuilder) BuildKubeClientWithContext(ctx context.Context) (kubernetes.Interface, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BuildKubeClient")
+	ret := m.ctrl.Call(m, "BuildKubeClientWithContext", ctx)
 	ret0, _ := ret[0].(kubernetes.Interface)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// BuildKubeClient indicates an expected call of BuildKubeClient.
-func (mr *MockBuilderMockRecorder) BuildKubeClient() *gomock.Call {
+// BuildKubeClientWithContext indicates an expected call of BuildKubeClientWithContext.
+func (mr *MockBuilderMockRecorder) BuildKubeClientWithContext(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BuildKubeClient", reflect.TypeOf((*MockBuilder)(nil).BuildKubeClient))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BuildKubeClientWithContext", reflect.TypeOf((*MockBuilder)(nil).BuildKubeClientWithContext), ctx)
 }
 
-// RESTConfig mocks base method.
-func (m *MockBuilder) RESTConfig() (*rest.Config, error) {
+// BuildWithContext mocks base method.
+func (m *MockBuilder) BuildWithContext(ctx context.Context) (client.Client, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RESTConfig")
+	ret := m.ctrl.Call(m, "BuildWithContext", ctx)
+	ret0, _ := ret[0].(client.Client)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BuildWithContext indicates an expected call of BuildWithContext.
+func (mr *MockBuilderMockRecorder) BuildWithContext(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BuildWithContext", reflect.TypeOf((*MockBuilder)(nil).BuildWithContext), ctx)
+}
+
+// RESTConfigWithContext mocks base method.
+func (m *MockBuilder) RESTConfigWithContext(ctx context.Context) (*rest.Config, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RESTConfigWithContext", ctx)
 	ret0, _ := ret[0].(*rest.Config)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// RESTConfig indicates an expected call of RESTConfig.
-func (mr *MockBuilderMockRecorder) RESTConfig() *gomock.Call {
+// RESTConfigWithContext indicates an expected call of RESTConfigWithContext.
+func (mr *MockBuilderMockRecorder) RESTConfigWithContext(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RESTConfig", reflect.TypeOf((*MockBuilder)(nil).RESTConfig))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RESTConfigWithContext", reflect.TypeOf((*MockBuilder)(nil).RESTConfigWithContext), ctx)
 }
 
 // UsePrimaryAPIURL mocks base method.

@@ -44,7 +44,7 @@ func MustGetClusterDeploymentClientConfig() *rest.Config {
 	cd := MustGetInstalledClusterDeployment()
 	c := MustGetClient()
 	remoteClientBuilder := remoteclient.NewBuilder(c, cd, "e2e-test")
-	cfg, err := remoteClientBuilder.RESTConfig()
+	cfg, err := remoteClientBuilder.RESTConfigWithContext(context.TODO())
 	if err != nil {
 		log.WithError(err).Fatal("unable to get REST config for clusterdeployment")
 		return nil

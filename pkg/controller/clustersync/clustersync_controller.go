@@ -158,8 +158,8 @@ func NewReconciler(mgr manager.Manager, rateLimiter flowcontrol.RateLimiter) (*R
 		clientCache:           sharedCache,
 		reapplyInterval:       reapplyInterval,
 		resourceHelperBuilder: resourceHelperBuilderFuncV2,
-		remoteClusterAPIClientBuilder: func(cd *hivev1.ClusterDeployment) remoteclient.BuilderV2 {
-			return remoteclient.NewBuilderV2(
+		remoteClusterAPIClientBuilder: func(cd *hivev1.ClusterDeployment) remoteclient.Builder {
+			return remoteclient.NewBuilderWithOptions(
 				remoteclient.WithClusterDeployment(c, cd),
 				remoteclient.WithControllerName(ControllerName),
 				remoteclient.WithCache(sharedCache),
@@ -172,7 +172,7 @@ func NewReconciler(mgr manager.Manager, rateLimiter flowcontrol.RateLimiter) (*R
 func resourceHelperBuilderFuncV2(
 	ctx context.Context,
 	cd *hivev1.ClusterDeployment,
-	remoteClusterAPIClientBuilderFunc func(cd *hivev1.ClusterDeployment) remoteclient.BuilderV2,
+	remoteClusterAPIClientBuilderFunc func(cd *hivev1.ClusterDeployment) remoteclient.Builder,
 	logger log.FieldLogger,
 ) (
 	resource.HelperV2,
@@ -284,11 +284,11 @@ type ReconcileClusterSync struct {
 	clientCache clientutil.ClientCache
 
 	// resourceHelperBuilder creates a v2 resource helper with Server-Side Apply and context support
-	resourceHelperBuilder func(context.Context, *hivev1.ClusterDeployment, func(cd *hivev1.ClusterDeployment) remoteclient.BuilderV2, log.FieldLogger) (resource.HelperV2, error)
+	resourceHelperBuilder func(context.Context, *hivev1.ClusterDeployment, func(cd *hivev1.ClusterDeployment) remoteclient.Builder, log.FieldLogger) (resource.HelperV2, error)
 
 	// remoteClusterAPIClientBuilder is a function pointer to the function that gets a builder for building a client
 	// for the remote cluster's API server (v2 with caching)
-	remoteClusterAPIClientBuilder func(cd *hivev1.ClusterDeployment) remoteclient.BuilderV2
+	remoteClusterAPIClientBuilder func(cd *hivev1.ClusterDeployment) remoteclient.Builder
 
 	ordinalID int64
 }

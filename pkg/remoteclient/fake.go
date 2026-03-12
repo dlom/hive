@@ -24,9 +24,15 @@ type fakeBuilder struct {
 	clusterVersion string
 }
 
-// Build returns a fake controller-runtime test client populated with the resources we expect to query for a
-// fake cluster.
-func (b *fakeBuilder) Build() (client.Client, error) {
+// BuildWithContext returns a fake controller-runtime test client populated with the resources we expect to query for a
+// fake cluster. Context is respected for cancellation but not used for I/O (fake client is local).
+func (b *fakeBuilder) BuildWithContext(ctx context.Context) (client.Client, error) {
+	// Check if context is already canceled
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
 
 	fakeObjects := []runtime.Object{
 		&routev1.Route{
@@ -96,56 +102,7 @@ func (b *fakeBuilder) Build() (client.Client, error) {
 	return testfake.NewFakeClientBuilder().WithRuntimeObjects(fakeObjects...).Build(), nil
 }
 
-func (b *fakeBuilder) BuildDynamic() (dynamic.Interface, error) {
-	return nil, errors.New("BuildDynamic not implemented for fake cluster client builder")
-}
-
-func (b *fakeBuilder) BuildKubeClient() (kubeclient.Interface, error) {
-	return nil, errors.New("BuildKubeClient not implemented for fake cluster client builder")
-}
-
-func (b *fakeBuilder) UsePrimaryAPIURL() Builder {
-	b.urlToUse = primaryURL
-	return b
-}
-
-func (b *fakeBuilder) UseSecondaryAPIURL() Builder {
-	b.urlToUse = secondaryURL
-	return b
-}
-
-func (b *fakeBuilder) RESTConfig() (*rest.Config, error) {
-	return nil, errors.New("RESTConfig not implemented for fake cluster client builder")
-}
-
-// UsePrimaryAPIURLV2 implements BuilderV2.UsePrimaryAPIURLV2().
-func (b *fakeBuilder) UsePrimaryAPIURLV2() BuilderV2 {
-	b.urlToUse = primaryURL
-	return b
-}
-
-// UseSecondaryAPIURLV2 implements BuilderV2.UseSecondaryAPIURLV2().
-func (b *fakeBuilder) UseSecondaryAPIURLV2() BuilderV2 {
-	b.urlToUse = secondaryURL
-	return b
-}
-
-// V2 context-aware methods for BuilderV2 interface compliance
-
-// BuildWithContext implements BuilderV2.BuildWithContext().
-// Context is respected for cancellation but not used for I/O (fake client is local).
-func (b *fakeBuilder) BuildWithContext(ctx context.Context) (client.Client, error) {
-	// Check if context is already canceled
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	default:
-	}
-
-	return b.Build()
-}
-
-// BuildDynamicWithContext implements BuilderV2.BuildDynamicWithContext().
+// BuildDynamicWithContext implements Builder.BuildDynamicWithContext().
 func (b *fakeBuilder) BuildDynamicWithContext(ctx context.Context) (dynamic.Interface, error) {
 	select {
 	case <-ctx.Done():
@@ -153,10 +110,10 @@ func (b *fakeBuilder) BuildDynamicWithContext(ctx context.Context) (dynamic.Inte
 	default:
 	}
 
-	return b.BuildDynamic()
+	return nil, errors.New("BuildDynamicWithContext not implemented for fake cluster client builder")
 }
 
-// BuildKubeClientWithContext implements BuilderV2.BuildKubeClientWithContext().
+// BuildKubeClientWithContext implements Builder.BuildKubeClientWithContext().
 func (b *fakeBuilder) BuildKubeClientWithContext(ctx context.Context) (kubeclient.Interface, error) {
 	select {
 	case <-ctx.Done():
@@ -164,10 +121,10 @@ func (b *fakeBuilder) BuildKubeClientWithContext(ctx context.Context) (kubeclien
 	default:
 	}
 
-	return b.BuildKubeClient()
+	return nil, errors.New("BuildKubeClientWithContext not implemented for fake cluster client builder")
 }
 
-// RESTConfigWithContext implements BuilderV2.RESTConfigWithContext().
+// RESTConfigWithContext implements Builder.RESTConfigWithContext().
 func (b *fakeBuilder) RESTConfigWithContext(ctx context.Context) (*rest.Config, error) {
 	select {
 	case <-ctx.Done():
@@ -175,5 +132,17 @@ func (b *fakeBuilder) RESTConfigWithContext(ctx context.Context) (*rest.Config, 
 	default:
 	}
 
-	return b.RESTConfig()
+	return nil, errors.New("RESTConfigWithContext not implemented for fake cluster client builder")
+}
+
+// UsePrimaryAPIURL implements Builder.UsePrimaryAPIURL().
+func (b *fakeBuilder) UsePrimaryAPIURL() Builder {
+	b.urlToUse = primaryURL
+	return b
+}
+
+// UseSecondaryAPIURL implements Builder.UseSecondaryAPIURL().
+func (b *fakeBuilder) UseSecondaryAPIURL() Builder {
+	b.urlToUse = secondaryURL
+	return b
 }

@@ -19,39 +19,32 @@ import (
 	"github.com/openshift/hive/pkg/controller/utils"
 )
 
-// Builder is used to build API clients to the remote cluster
+// Builder is used to build API clients to the remote cluster with context support and client caching.
 type Builder interface {
-	// Build will return a static controller-runtime client for the remote cluster.
-	// It is also responsible for verifying reachability of client, and will fail if unreachable.
-	Build() (client.Client, error)
+	// BuildWithContext creates a controller-runtime client with context support.
+	// If caching is enabled, returns a cached client on subsequent calls.
+	BuildWithContext(ctx context.Context) (client.Client, error)
 
-	// BuildDynamic will return a dynamic kubeclient for the remote cluster.
-	BuildDynamic() (dynamic.Interface, error)
+	// BuildDynamicWithContext creates a dynamic client with context support.
+	BuildDynamicWithContext(ctx context.Context) (dynamic.Interface, error)
 
-	// BuildKubeClient will return a kubernetes client for the remote cluster.
-	BuildKubeClient() (kubeclient.Interface, error)
+	// BuildKubeClientWithContext creates a typed Kubernetes client with context support.
+	BuildKubeClientWithContext(ctx context.Context) (kubeclient.Interface, error)
 
-	// RESTConfig returns the config for a REST client that connects to the remote cluster.
-	RESTConfig() (*rest.Config, error)
+	// RESTConfigWithContext returns the REST config with context support.
+	RESTConfigWithContext(ctx context.Context) (*rest.Config, error)
 
-	// UsePrimaryAPIURL will use the primary API URL. If there is an API URL override, then that is the primary.
-	// Otherwise, the primary is the default API URL.
+	// UsePrimaryAPIURL returns a new builder configured to use the primary API URL.
+	// If there is an API URL override, that is the primary. Otherwise, the kubeconfig URL is primary.
 	UsePrimaryAPIURL() Builder
 
-	// UseSecondaryAPIURL will use the secondary API URL. If there is an API URL override, then the initial API URL
-	// is the secondary.
+	// UseSecondaryAPIURL returns a new builder configured to use the secondary API URL.
+	// If there is an API URL override, the kubeconfig URL is secondary.
 	UseSecondaryAPIURL() Builder
 }
 
-// NewBuilder creates a new Builder for creating a client to connect to the remote cluster associated with the specified
-// ClusterDeployment.
-// The controllerName is needed for metrics.
-// If the ClusterDeployment carries the fake cluster annotation, a fake client will be returned populated with
-// runtime.Objects we need to query for in all our controllers.
-//
-// NOTE: This function now returns a BuilderV2 (which implements Builder) to provide access to context-aware methods.
-// Existing code using Builder interface continues to work unchanged.
-// To use caching and context support, use NewBuilderV2() instead.
+// NewBuilder creates a new Builder for creating a client to connect to the remote cluster.
+// If the ClusterDeployment carries the fake cluster annotation, a fake client will be returned.
 func NewBuilder(c client.Client, cd *hivev1.ClusterDeployment, controllerName hivev1.ControllerName) Builder {
 	if utils.IsFakeCluster(cd) {
 		clusterVersion := ""
@@ -64,11 +57,10 @@ func NewBuilder(c client.Client, cd *hivev1.ClusterDeployment, controllerName hi
 		}
 	}
 
-	// Return v2 builder without caching (preserves v1 behavior)
-	return NewBuilderV2(
+	return NewBuilderWithOptions(
 		WithClusterDeployment(c, cd),
 		WithControllerName(controllerName),
-		WithoutCache(), // v1 behavior: no caching
+		WithoutCache(),
 	)
 }
 
@@ -87,7 +79,7 @@ func ConnectToRemoteCluster(
 		remoteClientBuilder,
 		localClient,
 		logger,
-		func(builder Builder) (any, error) { return builder.Build() },
+		func(builder Builder) (any, error) { return builder.BuildWithContext(context.Background()) },
 	)
 	if unreachable {
 		return

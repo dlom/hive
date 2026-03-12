@@ -69,8 +69,8 @@ func NewReconciler(mgr manager.Manager, rateLimiter flowcontrol.RateLimiter) rec
 		clientCache:  sharedCache,
 		updateStatus: updateClusterStateStatus,
 	}
-	r.remoteClusterAPIClientBuilder = func(cd *hivev1.ClusterDeployment) remoteclient.BuilderV2 {
-		return remoteclient.NewBuilderV2(
+	r.remoteClusterAPIClientBuilder = func(cd *hivev1.ClusterDeployment) remoteclient.Builder {
+		return remoteclient.NewBuilderWithOptions(
 			remoteclient.WithClusterDeployment(r.Client, cd),
 			remoteclient.WithControllerName(ControllerName),
 			remoteclient.WithCache(sharedCache),
@@ -112,7 +112,7 @@ type ReconcileClusterState struct {
 
 	// remoteClusterAPIClientBuilder is a function pointer to the function that gets a builder for building a client
 	// for the remote cluster's API server (v2 with caching)
-	remoteClusterAPIClientBuilder func(cd *hivev1.ClusterDeployment) remoteclient.BuilderV2
+	remoteClusterAPIClientBuilder func(cd *hivev1.ClusterDeployment) remoteclient.Builder
 
 	// updateStatus updates a given cluster state's status, exposed for testing
 	updateStatus func(client.Client, *hivev1.ClusterState) error

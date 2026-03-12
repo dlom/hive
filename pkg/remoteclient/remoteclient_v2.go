@@ -18,32 +18,16 @@ import (
 	"github.com/openshift/hive/pkg/util/scheme"
 )
 
-// BuilderV2 is the v2 interface with context support and client caching.
-// It extends the v1 Builder interface with context-aware methods.
-type BuilderV2 interface {
-	Builder // Embed v1 interface for backward compatibility
-
-	// Context-aware methods (preferred for new code)
-	BuildWithContext(ctx context.Context) (client.Client, error)
-	BuildDynamicWithContext(ctx context.Context) (dynamic.Interface, error)
-	BuildKubeClientWithContext(ctx context.Context) (kubeclient.Interface, error)
-	RESTConfigWithContext(ctx context.Context) (*rest.Config, error)
-
-	// URL selection methods that return BuilderV2 (for method chaining)
-	UsePrimaryAPIURLV2() BuilderV2
-	UseSecondaryAPIURLV2() BuilderV2
-}
-
-// builderV2 implements BuilderV2 with caching and context support.
-type builderV2 struct {
+// builder implements Builder with caching and context support.
+type builder struct {
 	config builderConfig
 }
 
-// NewBuilderV2 creates a new v2 builder with functional options.
+// NewBuilderWithOptions creates a new builder with functional options.
 //
 // Example usage:
 //
-//	builder := remoteclient.NewBuilderV2(
+//	builder := remoteclient.NewBuilderWithOptions(
 //	    remoteclient.WithClusterDeployment(client, cd),
 //	    remoteclient.WithControllerName(hivev1.ClustersyncControllerName),
 //	    remoteclient.WithCache(sharedCache),
@@ -53,9 +37,9 @@ type builderV2 struct {
 //	defer cancel()
 //
 //	remoteClient, err := builder.BuildWithContext(ctx)
-func NewBuilderV2(opts ...BuilderOption) BuilderV2 {
+func NewBuilderWithOptions(opts ...BuilderOption) Builder {
 	cfg := builderConfig{
-		useCache:     false, // Default to no caching (v1 behavior)
+		useCache:     false,
 		urlSelection: activeURL,
 	}
 
@@ -63,13 +47,13 @@ func NewBuilderV2(opts ...BuilderOption) BuilderV2 {
 		opt(&cfg)
 	}
 
-	return &builderV2{config: cfg}
+	return &builder{config: cfg}
 }
 
 // BuildWithContext creates a controller-runtime client with context support.
 // If caching is enabled, this will return a cached client on subsequent calls
 // with the same cache key (cluster ID + kubeconfig version + API URL).
-func (b *builderV2) BuildWithContext(ctx context.Context) (client.Client, error) {
+func (b *builder) BuildWithContext(ctx context.Context) (client.Client, error) {
 	// If caching is disabled, create client directly
 	if !b.config.useCache {
 		return b.buildClientUncached(ctx)
@@ -89,7 +73,7 @@ func (b *builderV2) BuildWithContext(ctx context.Context) (client.Client, error)
 }
 
 // BuildDynamicWithContext creates a dynamic client with context support.
-func (b *builderV2) BuildDynamicWithContext(ctx context.Context) (dynamic.Interface, error) {
+func (b *builder) BuildDynamicWithContext(ctx context.Context) (dynamic.Interface, error) {
 	cfg, err := b.RESTConfigWithContext(ctx)
 	if err != nil {
 		return nil, err
@@ -104,7 +88,7 @@ func (b *builderV2) BuildDynamicWithContext(ctx context.Context) (dynamic.Interf
 }
 
 // BuildKubeClientWithContext creates a typed Kubernetes client with context support.
-func (b *builderV2) BuildKubeClientWithContext(ctx context.Context) (kubeclient.Interface, error) {
+func (b *builder) BuildKubeClientWithContext(ctx context.Context) (kubeclient.Interface, error) {
 	cfg, err := b.RESTConfigWithContext(ctx)
 	if err != nil {
 		return nil, err
@@ -119,7 +103,7 @@ func (b *builderV2) BuildKubeClientWithContext(ctx context.Context) (kubeclient.
 }
 
 // RESTConfigWithContext returns the REST config with context support.
-func (b *builderV2) RESTConfigWithContext(ctx context.Context) (*rest.Config, error) {
+func (b *builder) RESTConfigWithContext(ctx context.Context) (*rest.Config, error) {
 	// Load kubeconfig secret
 	secret, err := b.loadSecret(ctx)
 	if err != nil {
@@ -153,7 +137,7 @@ func (b *builderV2) RESTConfigWithContext(ctx context.Context) (*rest.Config, er
 }
 
 // buildClientUncached creates a new client without using the cache.
-func (b *builderV2) buildClientUncached(ctx context.Context) (client.Client, error) {
+func (b *builder) buildClientUncached(ctx context.Context) (client.Client, error) {
 	cfg, err := b.RESTConfigWithContext(ctx)
 	if err != nil {
 		return nil, err
@@ -178,7 +162,7 @@ func (b *builderV2) buildClientUncached(ctx context.Context) (client.Client, err
 }
 
 // verifyReachability checks if the cluster is reachable via discovery.
-func (b *builderV2) verifyReachability(ctx context.Context, cfg *rest.Config) error {
+func (b *builder) verifyReachability(ctx context.Context, cfg *rest.Config) error {
 	dc, err := discovery.NewDiscoveryClientForConfig(cfg)
 	if err != nil {
 		return b.wrapError(err, "create-discovery-client")
@@ -194,7 +178,7 @@ func (b *builderV2) verifyReachability(ctx context.Context, cfg *rest.Config) er
 }
 
 // generateCacheKey generates the cache key for this builder.
-func (b *builderV2) generateCacheKey(ctx context.Context) (clientutil.CacheKey, error) {
+func (b *builder) generateCacheKey(ctx context.Context) (clientutil.CacheKey, error) {
 	secret, err := b.loadSecret(ctx)
 	if err != nil {
 		return clientutil.CacheKey{}, err
@@ -217,7 +201,7 @@ func (b *builderV2) generateCacheKey(ctx context.Context) (clientutil.CacheKey, 
 }
 
 // loadSecret loads the kubeconfig secret.
-func (b *builderV2) loadSecret(ctx context.Context) (*corev1.Secret, error) {
+func (b *builder) loadSecret(ctx context.Context) (*corev1.Secret, error) {
 	if b.config.kubeconfigSecret != nil {
 		return b.config.kubeconfigSecret, nil
 	}
@@ -230,7 +214,7 @@ func (b *builderV2) loadSecret(ctx context.Context) (*corev1.Secret, error) {
 }
 
 // getAPIURL determines which API URL to use.
-func (b *builderV2) getAPIURL(kubeconfigURL string) string {
+func (b *builder) getAPIURL(kubeconfigURL string) string {
 	if b.config.cd == nil {
 		return kubeconfigURL
 	}
@@ -239,7 +223,7 @@ func (b *builderV2) getAPIURL(kubeconfigURL string) string {
 }
 
 // wrapError wraps an error with cluster context.
-func (b *builderV2) wrapError(err error, operation string) error {
+func (b *builder) wrapError(err error, operation string) error {
 	if err == nil {
 		return nil
 	}
@@ -261,58 +245,18 @@ func (b *builderV2) wrapError(err error, operation string) error {
 	)
 }
 
-// Backward compatibility methods - delegate to context versions with context.Background()
-
-// Build implements Builder.Build() for backward compatibility.
-func (b *builderV2) Build() (client.Client, error) {
-	return b.BuildWithContext(context.Background())
-}
-
-// BuildDynamic implements Builder.BuildDynamic() for backward compatibility.
-func (b *builderV2) BuildDynamic() (dynamic.Interface, error) {
-	return b.BuildDynamicWithContext(context.Background())
-}
-
-// BuildKubeClient implements Builder.BuildKubeClient() for backward compatibility.
-func (b *builderV2) BuildKubeClient() (kubeclient.Interface, error) {
-	return b.BuildKubeClientWithContext(context.Background())
-}
-
-// RESTConfig implements Builder.RESTConfig() for backward compatibility.
-func (b *builderV2) RESTConfig() (*rest.Config, error) {
-	return b.RESTConfigWithContext(context.Background())
-}
-
-// UsePrimaryAPIURL implements Builder.UsePrimaryAPIURL().
-// Mutates the builder to use primary URL selection.
-// For v1 compatibility - mutates state like the old builder.
-// Use UsePrimaryAPIURLV2() for immutable v2 API.
-func (b *builderV2) UsePrimaryAPIURL() Builder {
-	b.config.urlSelection = primaryURL
-	return b
-}
-
-// UseSecondaryAPIURL implements Builder.UseSecondaryAPIURL().
-// Mutates the builder to use secondary URL selection.
-// For v1 compatibility - mutates state like the old builder.
-// Use UseSecondaryAPIURLV2() for immutable v2 API.
-func (b *builderV2) UseSecondaryAPIURL() Builder {
-	b.config.urlSelection = secondaryURL
-	return b
-}
-
-// UsePrimaryAPIURLV2 returns a new builder with primary URL selection.
-// This is the v2 version that returns BuilderV2 to enable method chaining with BuildWithContext().
-func (b *builderV2) UsePrimaryAPIURLV2() BuilderV2 {
+// UsePrimaryAPIURL returns a new builder configured to use the primary API URL.
+// The builder is immutable - this returns a new instance.
+func (b *builder) UsePrimaryAPIURL() Builder {
 	newConfig := b.config
 	newConfig.urlSelection = primaryURL
-	return &builderV2{config: newConfig}
+	return &builder{config: newConfig}
 }
 
-// UseSecondaryAPIURLV2 returns a new builder with secondary URL selection.
-// This is the v2 version that returns BuilderV2 to enable method chaining with BuildWithContext().
-func (b *builderV2) UseSecondaryAPIURLV2() BuilderV2 {
+// UseSecondaryAPIURL returns a new builder configured to use the secondary API URL.
+// The builder is immutable - this returns a new instance.
+func (b *builder) UseSecondaryAPIURL() Builder {
 	newConfig := b.config
 	newConfig.urlSelection = secondaryURL
-	return &builderV2{config: newConfig}
+	return &builder{config: newConfig}
 }

@@ -115,7 +115,7 @@ type hibernationReconciler struct {
 
 	// remoteClientBuilder is a function pointer to the function that gets a builder for building a client
 	// for the remote cluster's API server (v2 with caching)
-	remoteClientBuilder func(cd *hivev1.ClusterDeployment) remoteclient.BuilderV2
+	remoteClientBuilder func(cd *hivev1.ClusterDeployment) remoteclient.Builder
 }
 
 // NewReconciler returns a new Reconciler
@@ -135,8 +135,8 @@ func NewReconciler(mgr manager.Manager, rateLimiter flowcontrol.RateLimiter) *hi
 		clientCache: sharedCache,
 		csrUtil:     &csrUtility{},
 	}
-	r.remoteClientBuilder = func(cd *hivev1.ClusterDeployment) remoteclient.BuilderV2 {
-		return remoteclient.NewBuilderV2(
+	r.remoteClientBuilder = func(cd *hivev1.ClusterDeployment) remoteclient.Builder {
+		return remoteclient.NewBuilderWithOptions(
 			remoteclient.WithClusterDeployment(r.Client, cd),
 			remoteclient.WithControllerName(ControllerName),
 			remoteclient.WithCache(sharedCache),
@@ -555,7 +555,7 @@ func (r *hibernationReconciler) checkClusterRunning(cd *hivev1.ClusterDeployment
 		return reconcile.Result{RequeueAfter: stateCheckInterval}, nil
 	}
 
-	remoteClient, err := r.remoteClientBuilder(cd).Build()
+	remoteClient, err := r.remoteClientBuilder(cd).BuildWithContext(context.Background())
 	if err != nil {
 		logger.WithError(err).Log(controllerutils.LogLevel(err), "Failed to connect to target cluster")
 		// Special case: it's possible to get here when we're in StartingMachines state. But MachinesRunning
@@ -820,7 +820,7 @@ func (r *hibernationReconciler) operatorsReady(remoteClient client.Client, logge
 }
 
 func (r *hibernationReconciler) checkCSRs(cd *hivev1.ClusterDeployment, remoteClient client.Client, logger log.FieldLogger) (reconcile.Result, error) {
-	kubeClient, err := r.remoteClientBuilder(cd).BuildKubeClient()
+	kubeClient, err := r.remoteClientBuilder(cd).BuildKubeClientWithContext(context.Background())
 	if err != nil {
 		logger.WithError(err).Log(controllerutils.LogLevel(err), "Failed to get kube client to target cluster")
 		return reconcile.Result{}, errors.Wrap(err, "failed to get kube client to target cluster")

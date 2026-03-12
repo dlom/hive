@@ -90,8 +90,8 @@ func NewReconciler(mgr manager.Manager, rateLimiter flowcontrol.RateLimiter) rec
 		logger:      logger,
 		clientCache: sharedCache,
 	}
-	r.remoteClusterAPIClientBuilder = func(cd *hivev1.ClusterDeployment) remoteclient.BuilderV2 {
-		return remoteclient.NewBuilderV2(
+	r.remoteClusterAPIClientBuilder = func(cd *hivev1.ClusterDeployment) remoteclient.Builder {
+		return remoteclient.NewBuilderWithOptions(
 			remoteclient.WithClusterDeployment(r.Client, cd),
 			remoteclient.WithControllerName(ControllerName),
 			remoteclient.WithCache(sharedCache),
@@ -135,7 +135,7 @@ type ReconcileRemoteMachineSet struct {
 
 	// remoteClusterAPIClientBuilder is a function pointer to the function that gets a builder for building a client
 	// for the remote cluster's API server (v2 with caching)
-	remoteClusterAPIClientBuilder func(cd *hivev1.ClusterDeployment) remoteclient.BuilderV2
+	remoteClusterAPIClientBuilder func(cd *hivev1.ClusterDeployment) remoteclient.Builder
 }
 
 // Reconcile checks if we can establish an API client connection to the remote cluster and maintains the unreachable condition as a result.
@@ -216,8 +216,8 @@ func (r *ReconcileRemoteMachineSet) Reconcile(ctx context.Context, request recon
 	updateUnreachable := true
 	var primaryErr error
 	// Attempt to connect to the remote cluster using the preferred API URL.
-	// V2: Use BuildWithContext for timeout support and client caching
-	_, primaryErr = remoteClientBuilder.UsePrimaryAPIURLV2().BuildWithContext(ctx)
+	// Use BuildWithContext for timeout support and client caching
+	_, primaryErr = remoteClientBuilder.UsePrimaryAPIURL().BuildWithContext(ctx)
 	if primaryErr != nil {
 		// If the remote cluster is not accessible via the preferred API URL, check if there is a fallback API URL to use.
 		if hasOverride(cd) {
@@ -228,8 +228,8 @@ func (r *ReconcileRemoteMachineSet) Reconcile(ctx context.Context, request recon
 			// become accessible, the controller should not recheck connectivity via the fallback API URL more often
 			// than once every 2 hours.
 			if connectivityRecheckNeeded || wasPrimaryActive {
-				// V2: Use BuildWithContext for timeout support and client caching
-				if _, secondaryErr := remoteClientBuilder.UseSecondaryAPIURLV2().BuildWithContext(ctx); secondaryErr != nil {
+				// Use BuildWithContext for timeout support and client caching
+				if _, secondaryErr := remoteClientBuilder.UseSecondaryAPIURL().BuildWithContext(ctx); secondaryErr != nil {
 					cdLog.WithError(secondaryErr).Warn("unable to create remote API client with either the initial API URL or the API URL override, marking cluster unreachable")
 					unreachableError = utilerrors.NewAggregate([]error{primaryErr, secondaryErr})
 				}

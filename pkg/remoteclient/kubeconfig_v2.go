@@ -17,9 +17,9 @@ import (
 	"github.com/openshift/hive/pkg/util/scheme"
 )
 
-// NewBuilderFromKubeconfigV2 creates a v2 builder from a kubeconfig secret with optional caching.
+// NewBuilderFromKubeconfig creates a builder from a kubeconfig secret with optional caching.
 // This is used by controllers that work with raw kubeconfig secrets rather than ClusterDeployments.
-func NewBuilderFromKubeconfigV2(opts ...BuilderOption) BuilderV2 {
+func NewBuilderFromKubeconfig(opts ...BuilderOption) Builder {
 	cfg := builderConfig{
 		useCache: false, // Default to no caching unless explicitly enabled
 	}
@@ -28,16 +28,16 @@ func NewBuilderFromKubeconfigV2(opts ...BuilderOption) BuilderV2 {
 		opt(&cfg)
 	}
 
-	return &kubeconfigBuilderV2{config: cfg}
+	return &kubeconfigBuilder{config: cfg}
 }
 
-type kubeconfigBuilderV2 struct {
+type kubeconfigBuilder struct {
 	config builderConfig
 }
 
 // BuildWithContext creates a controller-runtime client with context support.
 // If caching is enabled, this will return a cached client on subsequent calls.
-func (b *kubeconfigBuilderV2) BuildWithContext(ctx context.Context) (client.Client, error) {
+func (b *kubeconfigBuilder) BuildWithContext(ctx context.Context) (client.Client, error) {
 	// If caching is disabled, create client directly
 	if !b.config.useCache {
 		return b.buildClientUncached(ctx)
@@ -57,7 +57,7 @@ func (b *kubeconfigBuilderV2) BuildWithContext(ctx context.Context) (client.Clie
 }
 
 // BuildDynamicWithContext creates a dynamic client with context support.
-func (b *kubeconfigBuilderV2) BuildDynamicWithContext(ctx context.Context) (dynamic.Interface, error) {
+func (b *kubeconfigBuilder) BuildDynamicWithContext(ctx context.Context) (dynamic.Interface, error) {
 	cfg, err := b.RESTConfigWithContext(ctx)
 	if err != nil {
 		return nil, err
@@ -72,7 +72,7 @@ func (b *kubeconfigBuilderV2) BuildDynamicWithContext(ctx context.Context) (dyna
 }
 
 // BuildKubeClientWithContext creates a typed Kubernetes client with context support.
-func (b *kubeconfigBuilderV2) BuildKubeClientWithContext(ctx context.Context) (kubeclient.Interface, error) {
+func (b *kubeconfigBuilder) BuildKubeClientWithContext(ctx context.Context) (kubeclient.Interface, error) {
 	cfg, err := b.RESTConfigWithContext(ctx)
 	if err != nil {
 		return nil, err
@@ -87,7 +87,7 @@ func (b *kubeconfigBuilderV2) BuildKubeClientWithContext(ctx context.Context) (k
 }
 
 // RESTConfigWithContext returns the REST config with context support.
-func (b *kubeconfigBuilderV2) RESTConfigWithContext(ctx context.Context) (*rest.Config, error) {
+func (b *kubeconfigBuilder) RESTConfigWithContext(ctx context.Context) (*rest.Config, error) {
 	if b.config.kubeconfigSecret == nil {
 		return nil, fmt.Errorf("kubeconfig secret not provided")
 	}
@@ -105,7 +105,7 @@ func (b *kubeconfigBuilderV2) RESTConfigWithContext(ctx context.Context) (*rest.
 }
 
 // buildClientUncached creates a new client without using the cache.
-func (b *kubeconfigBuilderV2) buildClientUncached(ctx context.Context) (client.Client, error) {
+func (b *kubeconfigBuilder) buildClientUncached(ctx context.Context) (client.Client, error) {
 	cfg, err := b.RESTConfigWithContext(ctx)
 	if err != nil {
 		return nil, err
@@ -130,7 +130,7 @@ func (b *kubeconfigBuilderV2) buildClientUncached(ctx context.Context) (client.C
 }
 
 // verifyReachability checks if the cluster is reachable via discovery.
-func (b *kubeconfigBuilderV2) verifyReachability(ctx context.Context, cfg *rest.Config) error {
+func (b *kubeconfigBuilder) verifyReachability(ctx context.Context, cfg *rest.Config) error {
 	dc, err := discovery.NewDiscoveryClientForConfig(cfg)
 	if err != nil {
 		return b.wrapError(err, "create-discovery-client")
@@ -146,7 +146,7 @@ func (b *kubeconfigBuilderV2) verifyReachability(ctx context.Context, cfg *rest.
 }
 
 // generateCacheKey generates the cache key for this builder.
-func (b *kubeconfigBuilderV2) generateCacheKey(ctx context.Context) (clientutil.CacheKey, error) {
+func (b *kubeconfigBuilder) generateCacheKey(ctx context.Context) (clientutil.CacheKey, error) {
 	if b.config.kubeconfigSecret == nil {
 		return clientutil.CacheKey{}, fmt.Errorf("kubeconfig secret not provided")
 	}
@@ -165,7 +165,7 @@ func (b *kubeconfigBuilderV2) generateCacheKey(ctx context.Context) (clientutil.
 }
 
 // wrapError wraps an error with cluster context.
-func (b *kubeconfigBuilderV2) wrapError(err error, operation string) error {
+func (b *kubeconfigBuilder) wrapError(err error, operation string) error {
 	if err == nil {
 		return nil
 	}
@@ -185,48 +185,14 @@ func (b *kubeconfigBuilderV2) wrapError(err error, operation string) error {
 	)
 }
 
-// Backward compatibility methods - delegate to context versions with context.Background()
-
-// Build implements Builder.Build() for backward compatibility.
-func (b *kubeconfigBuilderV2) Build() (client.Client, error) {
-	return b.BuildWithContext(context.Background())
-}
-
-// BuildDynamic implements Builder.BuildDynamic() for backward compatibility.
-func (b *kubeconfigBuilderV2) BuildDynamic() (dynamic.Interface, error) {
-	return b.BuildDynamicWithContext(context.Background())
-}
-
-// BuildKubeClient implements Builder.BuildKubeClient() for backward compatibility.
-func (b *kubeconfigBuilderV2) BuildKubeClient() (kubeclient.Interface, error) {
-	return b.BuildKubeClientWithContext(context.Background())
-}
-
-// RESTConfig implements Builder.RESTConfig() for backward compatibility.
-func (b *kubeconfigBuilderV2) RESTConfig() (*rest.Config, error) {
-	return b.RESTConfigWithContext(context.Background())
-}
-
 // UsePrimaryAPIURL implements Builder.UsePrimaryAPIURL().
 // For kubeconfig builder, there's no URL override, so just return self.
-func (b *kubeconfigBuilderV2) UsePrimaryAPIURL() Builder {
+func (b *kubeconfigBuilder) UsePrimaryAPIURL() Builder {
 	return b
 }
 
 // UseSecondaryAPIURL implements Builder.UseSecondaryAPIURL().
 // For kubeconfig builder, there's no URL override, so just return self.
-func (b *kubeconfigBuilderV2) UseSecondaryAPIURL() Builder {
-	return b
-}
-
-// UsePrimaryAPIURLV2 returns a new builder with primary URL selection.
-// For kubeconfig builder, there's no URL override, so just return self.
-func (b *kubeconfigBuilderV2) UsePrimaryAPIURLV2() BuilderV2 {
-	return b
-}
-
-// UseSecondaryAPIURLV2 returns a new builder with secondary URL selection.
-// For kubeconfig builder, there's no URL override, so just return self.
-func (b *kubeconfigBuilderV2) UseSecondaryAPIURLV2() BuilderV2 {
+func (b *kubeconfigBuilder) UseSecondaryAPIURL() Builder {
 	return b
 }

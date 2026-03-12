@@ -172,8 +172,8 @@ func NewReconciler(mgr manager.Manager, logger log.FieldLogger, rateLimiter flow
 		watchingClusterInstall:                  map[string]struct{}{},
 		validateCredentialsForClusterDeployment: controllerutils.ValidateCredentialsForClusterDeployment,
 	}
-	r.remoteClusterAPIClientBuilder = func(cd *hivev1.ClusterDeployment) remoteclient.BuilderV2 {
-		return remoteclient.NewBuilderV2(
+	r.remoteClusterAPIClientBuilder = func(cd *hivev1.ClusterDeployment) remoteclient.Builder {
+		return remoteclient.NewBuilderWithOptions(
 			remoteclient.WithClusterDeployment(r.Client, cd),
 			remoteclient.WithControllerName(ControllerName),
 			remoteclient.WithCache(sharedCache),
@@ -349,7 +349,7 @@ type ReconcileClusterDeployment struct {
 
 	// remoteClusterAPIClientBuilder is a function pointer to the function that gets a builder for building a client
 	// for the remote cluster's API server (v2 with caching)
-	remoteClusterAPIClientBuilder func(cd *hivev1.ClusterDeployment) remoteclient.BuilderV2
+	remoteClusterAPIClientBuilder func(cd *hivev1.ClusterDeployment) remoteclient.Builder
 
 	// validateCredentialsForClusterDeployment is what this controller will call to validate
 	// that the platform creds are good (used for testing)
