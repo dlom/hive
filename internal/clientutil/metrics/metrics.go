@@ -6,7 +6,9 @@ import (
 )
 
 var (
-	// Transport Metrics (existing metrics from controller/utils)
+	// Transport Metrics - used by HTTP transport wrappers for tracking client requests.
+	// These metrics are recorded automatically by ControllerMetricsTripper when wrapping
+	// REST configs with AddControllerMetricsTransportWrapper.
 	metricKubeClientRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "hive_kube_client_requests_total",
@@ -31,101 +33,15 @@ var (
 		},
 		[]string{"controller", "method", "resource", "remote"},
 	)
-
-	// Cache Metrics (new)
-	cacheHitsTotal = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "hive_client_cache_hits_total",
-			Help: "Total number of client cache hits.",
-		},
-		[]string{"controller"},
-	)
-
-	cacheMissesTotal = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "hive_client_cache_misses_total",
-			Help: "Total number of client cache misses.",
-		},
-		[]string{"controller"},
-	)
-
-	cacheSizeGauge = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "hive_client_cache_size",
-			Help: "Current size of the client cache.",
-		},
-		[]string{"controller"},
-	)
-
-	cacheEvictionsTotal = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "hive_client_cache_evictions_total",
-			Help: "Total number of cache evictions.",
-		},
-		[]string{"controller", "reason"},
-	)
-
-	// Operation Metrics (new - for resource operations)
-	operationDurationSeconds = prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "hive_resource_operation_duration_seconds",
-			Help:    "Duration of resource operations (apply, patch, delete).",
-			Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10, 30},
-		},
-		[]string{"controller", "operation", "gvk", "result"},
-	)
-
-	operationTotal = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "hive_resource_operation_total",
-			Help: "Total number of resource operations.",
-		},
-		[]string{"controller", "operation", "gvk", "result"},
-	)
 )
 
 func init() {
-	// Register all metrics with controller-runtime's registry
+	// Register transport metrics with controller-runtime's registry
 	metrics.Registry.MustRegister(
 		metricKubeClientRequests,
 		metricKubeClientRequestSeconds,
 		metricKubeClientRequestsCancelled,
-		cacheHitsTotal,
-		cacheMissesTotal,
-		cacheSizeGauge,
-		cacheEvictionsTotal,
-		operationDurationSeconds,
-		operationTotal,
 	)
-}
-
-// RecordCacheHit records a cache hit for the given controller.
-func RecordCacheHit(controller string) {
-	cacheHitsTotal.WithLabelValues(controller).Inc()
-}
-
-// RecordCacheMiss records a cache miss for the given controller.
-func RecordCacheMiss(controller string) {
-	cacheMissesTotal.WithLabelValues(controller).Inc()
-}
-
-// RecordCacheSize records the current cache size.
-func RecordCacheSize(controller string, size int) {
-	cacheSizeGauge.WithLabelValues(controller).Set(float64(size))
-}
-
-// RecordEviction records a cache eviction with the given reason.
-// Reason should be one of: "lru", "ttl"
-func RecordEviction(controller, reason string) {
-	cacheEvictionsTotal.WithLabelValues(controller, reason).Inc()
-}
-
-// RecordOperation records a resource operation with duration and result.
-// Operation should be one of: "apply", "patch", "delete"
-// Result should be one of: "success", "failure", "conflict", "timeout"
-func RecordOperation(controller, operation, gvk, result string, duration float64) {
-	operationDurationSeconds.WithLabelValues(controller, operation, gvk, result).Observe(duration)
-	operationTotal.WithLabelValues(controller, operation, gvk, result).Inc()
 }
 
 // RecordRequest records a Kubernetes client request.

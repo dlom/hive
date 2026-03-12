@@ -178,16 +178,16 @@ func (h *helperImpl) wrapError(err error, operation string, gvk schema.GroupVers
 
 // recordOperation records operation metrics.
 // This is used by all operation methods to track performance and success rates.
-func (h *helperImpl) recordOperation(operation string, gvk schema.GroupVersionKind, result string, duration float64) {
+func (h *helperImpl) recordOperation(operation string, gvk schema.GroupVersionKind, result string, dur float64) {
 	if h.controllerName == "" {
 		return
 	}
 
-	clientutil.RecordOperation(
+	recordOperation(
 		string(h.controllerName),
 		operation,
 		gvk.String(),
 		result,
-		duration,
+		dur,
 	)
 }

@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/openshift/hive/internal/clientutil/metrics"
 )
 
 // ClientFactory is a function that creates a new client.
@@ -116,8 +114,8 @@ func (c *lruCache) Get(ctx context.Context, key CacheKey, factory ClientFactory)
 			c.mu.Unlock()
 
 			// Record cache hit metrics
-			metrics.RecordCacheHit(controllerName)
-			metrics.RecordCacheSize(controllerName, cacheSize)
+			recordCacheHit(controllerName)
+			recordCacheSize(controllerName, cacheSize)
 
 			return entry.client, nil
 		}
@@ -125,7 +123,7 @@ func (c *lruCache) Get(ctx context.Context, key CacheKey, factory ClientFactory)
 
 	// Cache miss - create new client
 	// Record cache miss metrics
-	metrics.RecordCacheMiss(controllerName)
+	recordCacheMiss(controllerName)
 
 	// Create client outside of lock to avoid blocking cache during network I/O
 	newClient, err := factory(ctx)
@@ -161,7 +159,7 @@ func (c *lruCache) Get(ctx context.Context, key CacheKey, factory ClientFactory)
 	c.entries[keyStr] = newEntry
 
 	// Record cache size after adding new entry
-	metrics.RecordCacheSize(controllerName, len(c.entries))
+	recordCacheSize(controllerName, len(c.entries))
 
 	return newClient, nil
 }
@@ -190,7 +188,7 @@ func (c *lruCache) evictLocked(key string, reason string, controllerName string)
 	delete(c.entries, key)
 
 	// Record eviction metrics
-	metrics.RecordEviction(controllerName, reason)
+	recordEviction(controllerName, reason)
 
 	// Remove from access order
 	if entry.element != nil {

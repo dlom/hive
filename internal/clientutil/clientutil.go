@@ -12,7 +12,6 @@ import (
 	"github.com/openshift/hive/internal/clientutil/config"
 	"github.com/openshift/hive/internal/clientutil/errors"
 	"github.com/openshift/hive/internal/clientutil/fieldmanager"
-	"github.com/openshift/hive/internal/clientutil/metrics"
 )
 
 var (
@@ -68,13 +67,6 @@ var (
 var (
 	CopyConfigWithMetrics  = config.CopyConfigWithMetrics
 	PrepareConfigForClient = config.PrepareConfigForClient
-)
-
-// Metrics functions
-var (
-	RecordOperation = metrics.RecordOperation
-
-	AddControllerMetricsTransportWrapper = metrics.AddControllerMetricsTransportWrapper
 )
 
 // InitializeSharedCache creates the shared client cache used across all controllers.
