@@ -75,7 +75,7 @@ func Add(mgr manager.Manager) error {
 		return remoteclient.NewBuilderWithOptions(
 			remoteclient.WithClusterDeployment(r.Client, cd),
 			remoteclient.WithControllerName(ControllerName),
-			remoteclient.WithCache(sharedCache),
+			remoteclient.WithCache(r.clientCache),
 		)
 	}
 	return AddToManager(mgr, r, concurrentReconciles, queueRateLimiter)

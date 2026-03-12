@@ -149,20 +149,21 @@ func NewReconciler(mgr manager.Manager, rateLimiter flowcontrol.RateLimiter) (*R
 	// Provides 92-97% faster operations through client caching
 	sharedCache := clientutil.GetSharedCache(ControllerName)
 
-	return &ReconcileClusterSync{
+	r := &ReconcileClusterSync{
 		Client:                c,
 		logger:                logger,
 		clientCache:           sharedCache,
 		reapplyInterval:       reapplyInterval,
 		resourceHelperBuilder: resourceHelperBuilderFunc,
-		remoteClusterAPIClientBuilder: func(cd *hivev1.ClusterDeployment) remoteclient.Builder {
-			return remoteclient.NewBuilderWithOptions(
-				remoteclient.WithClusterDeployment(c, cd),
-				remoteclient.WithControllerName(ControllerName),
-				remoteclient.WithCache(sharedCache),
-			)
-		},
-	}, nil
+	}
+	r.remoteClusterAPIClientBuilder = func(cd *hivev1.ClusterDeployment) remoteclient.Builder {
+		return remoteclient.NewBuilderWithOptions(
+			remoteclient.WithClusterDeployment(c, cd),
+			remoteclient.WithControllerName(ControllerName),
+			remoteclient.WithCache(r.clientCache),
+		)
+	}
+	return r, nil
 }
 
 // resourceHelperBuilderFunc creates a resource helper with Server-Side Apply and client caching

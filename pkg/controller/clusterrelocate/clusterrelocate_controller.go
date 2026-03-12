@@ -99,7 +99,7 @@ func Add(mgr manager.Manager) error {
 		return remoteclient.NewBuilderWithOptions(
 			remoteclient.WithKubeconfigSecret(secret),
 			remoteclient.WithControllerName(ControllerName),
-			remoteclient.WithCache(sharedCache),
+			remoteclient.WithCache(r.clientCache),
 		)
 	}
 

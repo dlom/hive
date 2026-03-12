@@ -173,7 +173,7 @@ func NewReconciler(mgr manager.Manager, logger log.FieldLogger, rateLimiter flow
 		return remoteclient.NewBuilderWithOptions(
 			remoteclient.WithClusterDeployment(r.Client, cd),
 			remoteclient.WithControllerName(ControllerName),
-			remoteclient.WithCache(sharedCache),
+			remoteclient.WithCache(r.clientCache),
 		)
 	}
 
