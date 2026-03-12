@@ -28,6 +28,10 @@ type BuilderV2 interface {
 	BuildDynamicWithContext(ctx context.Context) (dynamic.Interface, error)
 	BuildKubeClientWithContext(ctx context.Context) (kubeclient.Interface, error)
 	RESTConfigWithContext(ctx context.Context) (*rest.Config, error)
+
+	// URL selection methods that return BuilderV2 (for method chaining)
+	UsePrimaryAPIURLV2() BuilderV2
+	UseSecondaryAPIURLV2() BuilderV2
 }
 
 // builderV2 implements BuilderV2 with caching and context support.
@@ -281,6 +285,7 @@ func (b *builderV2) RESTConfig() (*rest.Config, error) {
 
 // UsePrimaryAPIURL implements Builder.UsePrimaryAPIURL().
 // Returns a new builder with primary URL selection (immutable).
+// Note: Returns Builder interface for v1 compatibility. Use UsePrimaryAPIURLV2() for v2 chaining.
 func (b *builderV2) UsePrimaryAPIURL() Builder {
 	newConfig := b.config
 	newConfig.urlSelection = primaryURL
@@ -289,7 +294,24 @@ func (b *builderV2) UsePrimaryAPIURL() Builder {
 
 // UseSecondaryAPIURL implements Builder.UseSecondaryAPIURL().
 // Returns a new builder with secondary URL selection (immutable).
+// Note: Returns Builder interface for v1 compatibility. Use UseSecondaryAPIURLV2() for v2 chaining.
 func (b *builderV2) UseSecondaryAPIURL() Builder {
+	newConfig := b.config
+	newConfig.urlSelection = secondaryURL
+	return &builderV2{config: newConfig}
+}
+
+// UsePrimaryAPIURLV2 returns a new builder with primary URL selection.
+// This is the v2 version that returns BuilderV2 to enable method chaining with BuildWithContext().
+func (b *builderV2) UsePrimaryAPIURLV2() BuilderV2 {
+	newConfig := b.config
+	newConfig.urlSelection = primaryURL
+	return &builderV2{config: newConfig}
+}
+
+// UseSecondaryAPIURLV2 returns a new builder with secondary URL selection.
+// This is the v2 version that returns BuilderV2 to enable method chaining with BuildWithContext().
+func (b *builderV2) UseSecondaryAPIURLV2() BuilderV2 {
 	newConfig := b.config
 	newConfig.urlSelection = secondaryURL
 	return &builderV2{config: newConfig}
