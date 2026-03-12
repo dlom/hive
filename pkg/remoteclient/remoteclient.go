@@ -10,7 +10,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/dynamic"
 	kubeclient "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -24,9 +23,6 @@ type Builder interface {
 	// BuildWithContext creates a controller-runtime client with context support.
 	// If caching is enabled, returns a cached client on subsequent calls.
 	BuildWithContext(ctx context.Context) (client.Client, error)
-
-	// BuildDynamicWithContext creates a dynamic client with context support.
-	BuildDynamicWithContext(ctx context.Context) (dynamic.Interface, error)
 
 	// BuildKubeClientWithContext creates a typed Kubernetes client with context support.
 	BuildKubeClientWithContext(ctx context.Context) (kubeclient.Interface, error)

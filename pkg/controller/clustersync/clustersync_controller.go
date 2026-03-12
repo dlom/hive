@@ -256,7 +256,7 @@ func requestsForSelectorSyncSet(c client.Client, logger log.FieldLogger) handler
 			return nil
 		}
 		cds := &hivev1.ClusterDeploymentList{}
-		if err := c.List(context.Background(), cds, client.MatchingLabelsSelector{Selector: labelSelector}); err != nil {
+		if err := c.List(ctx, cds, client.MatchingLabelsSelector{Selector: labelSelector}); err != nil {
 			logger.WithError(err).Log(controllerutils.LogLevel(err), "could not list ClusterDeployments matching SelectorSyncSet")
 			return nil
 		}
@@ -302,7 +302,7 @@ func (r *ReconcileClusterSync) Reconcile(ctx context.Context, request reconcile.
 
 	// Fetch the ClusterDeployment instance
 	cd := &hivev1.ClusterDeployment{}
-	err := r.Get(context.TODO(), request.NamespacedName, cd)
+	err := r.Get(ctx, request.NamespacedName, cd)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			logger.Info("ClusterDeployment not found")
@@ -353,7 +353,7 @@ func (r *ReconcileClusterSync) Reconcile(ctx context.Context, request reconcile.
 	}
 
 	clusterSync := &hiveintv1alpha1.ClusterSync{}
-	switch err := r.Get(context.Background(), request.NamespacedName, clusterSync); {
+	switch err := r.Get(ctx, request.NamespacedName, clusterSync); {
 	case apierrors.IsNotFound(err):
 		logger.Info("creating ClusterSync as it does not exist")
 		clusterSync.Namespace = cd.Namespace
@@ -361,7 +361,7 @@ func (r *ReconcileClusterSync) Reconcile(ctx context.Context, request reconcile.
 		ownerRef := metav1.NewControllerRef(cd, cd.GroupVersionKind())
 		ownerRef.Controller = nil
 		clusterSync.OwnerReferences = []metav1.OwnerReference{*ownerRef}
-		switch err := r.Create(context.Background(), clusterSync); {
+		switch err := r.Create(ctx, clusterSync); {
 		case apierrors.IsAlreadyExists(err):
 			// race condition, just proceed
 			logger.Warn("race condition: something else has created the clustersync already")
@@ -382,7 +382,7 @@ func (r *ReconcileClusterSync) Reconcile(ctx context.Context, request reconcile.
 
 	needToCreateLease := false
 	lease := &hiveintv1alpha1.ClusterSyncLease{}
-	switch err := r.Get(context.Background(), request.NamespacedName, lease); {
+	switch err := r.Get(ctx, request.NamespacedName, lease); {
 	case apierrors.IsNotFound(err):
 		logger.Info("Lease for ClusterSync does not exist; will need to create")
 		needToCreateLease = true
@@ -393,11 +393,11 @@ func (r *ReconcileClusterSync) Reconcile(ctx context.Context, request reconcile.
 
 	origStatus := clusterSync.Status.DeepCopy()
 
-	syncSets, err := r.getSyncSetsForClusterDeployment(cd, logger)
+	syncSets, err := r.getSyncSetsForClusterDeployment(ctx, cd, logger)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
-	selectorSyncSets, err := r.getSelectorSyncSetsForClusterDeployment(cd, logger)
+	selectorSyncSets, err := r.getSelectorSyncSetsForClusterDeployment(ctx, cd, logger)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -454,7 +454,7 @@ func (r *ReconcileClusterSync) Reconcile(ctx context.Context, request reconcile.
 	// Update the ClusterSync
 	if !reflect.DeepEqual(origStatus, &clusterSync.Status) {
 		logger.Info("updating ClusterSync")
-		if err := r.Status().Update(context.Background(), clusterSync); err != nil {
+		if err := r.Status().Update(ctx, clusterSync); err != nil {
 			logger.WithError(err).Log(controllerutils.LogLevel(err), "could not update ClusterSync")
 			return reconcile.Result{}, err
 		}
@@ -470,13 +470,13 @@ func (r *ReconcileClusterSync) Reconcile(ctx context.Context, request reconcile.
 			ownerRef := metav1.NewControllerRef(clusterSync, clusterSync.GroupVersionKind())
 			ownerRef.Controller = nil
 			lease.OwnerReferences = []metav1.OwnerReference{*ownerRef}
-			if err := r.Create(context.Background(), lease); err != nil {
+			if err := r.Create(ctx, lease); err != nil {
 				logger.WithError(err).Log(controllerutils.LogLevel(err), "could not create lease for ClusterSync")
 				return reconcile.Result{}, err
 			}
 		} else {
 			logger.Info("updating lease for ClusterSync")
-			if err := r.Update(context.Background(), lease); err != nil {
+			if err := r.Update(ctx, lease); err != nil {
 				logger.WithError(err).Log(controllerutils.LogLevel(err), "could not update lease for ClusterSync")
 				return reconcile.Result{}, err
 			}
@@ -854,7 +854,7 @@ func (r *ReconcileClusterSync) applySecret(
 
 	secretName := secretMapping.SourceRef.Name
 	secret := &corev1.Secret{}
-	err := r.Get(context.Background(), types.NamespacedName{Name: secretName, Namespace: srcNamespace}, secret)
+	err := r.Get(ctx, types.NamespacedName{Name: secretName, Namespace: srcNamespace}, secret)
 	if err != nil {
 		logger.WithError(err).Error("unable to retrieve secret from hive namespace")
 		return errors.Wrapf(err, "failed to retrieve secret %s/%s", srcNamespace, secretName), true
@@ -897,11 +897,10 @@ func (r *ReconcileClusterSync) applyPatch(
 	logger.Debug("applying patch")
 
 	// Parse GVK from APIVersion and Kind
-	gv, err := schema.ParseGroupVersion(patch.APIVersion)
+	gvk, err := parseGVK(patch.APIVersion, patch.Kind)
 	if err != nil {
 		return errors.Wrapf(err, "invalid APIVersion %s for patch %d", patch.APIVersion, patchIndex), false
 	}
-	gvk := gv.WithKind(patch.Kind)
 
 	// Convert patch type string to types.PatchType
 	patchType := types.PatchType(patch.PatchType)
@@ -940,17 +939,7 @@ func applyToTargetCluster(
 		metricResourcesApplied.WithLabelValues(applyFnMetricLabel, metricResultError).Inc()
 		metricTimeToApplySyncSetResource.WithLabelValues(applyFnMetricLabel, metricResultError).Observe(applyTime)
 	} else {
-		// Use structured result
-		var resultStr string
-		switch result.State {
-		case resource.Created:
-			resultStr = "created"
-		case resource.Configured:
-			resultStr = "configured"
-		case resource.Unchanged:
-			resultStr = "unchanged"
-		}
-		logger.WithField("applyResult", resultStr).Debug("resource applied")
+		logger.WithField("applyResult", result.State.String()).Debug("resource applied")
 		metricResourcesApplied.WithLabelValues(applyFnMetricLabel, metricResultSuccess).Inc()
 		metricTimeToApplySyncSetResource.WithLabelValues(applyFnMetricLabel, metricResultSuccess).Observe(applyTime)
 	}
@@ -977,14 +966,13 @@ func deleteFromTargetCluster(
 		logger.Info("deleting resource")
 
 		// Parse GVK from APIVersion and Kind
-		gv, err := schema.ParseGroupVersion(r.APIVersion)
+		gvk, err := parseGVK(r.APIVersion, r.Kind)
 		if err != nil {
 			logger.WithError(err).Warn("invalid APIVersion")
 			allErrs = append(allErrs, fmt.Errorf("invalid APIVersion %s: %w", r.APIVersion, err))
 			remainingResources = append(remainingResources, r)
 			continue
 		}
-		gvk := gv.WithKind(r.Kind)
 
 		// Use Delete with context and structured results
 		result, err := resourceHelper.Delete(ctx, gvk, r.Namespace, r.Name)
@@ -1001,9 +989,9 @@ func deleteFromTargetCluster(
 	return remainingResources, utilerrors.NewAggregate(allErrs)
 }
 
-func (r *ReconcileClusterSync) getSyncSetsForClusterDeployment(cd *hivev1.ClusterDeployment, logger log.FieldLogger) ([]CommonSyncSet, error) {
+func (r *ReconcileClusterSync) getSyncSetsForClusterDeployment(ctx context.Context, cd *hivev1.ClusterDeployment, logger log.FieldLogger) ([]CommonSyncSet, error) {
 	syncSetsList := &hivev1.SyncSetList{}
-	if err := r.List(context.Background(), syncSetsList, client.InNamespace(cd.Namespace)); err != nil {
+	if err := r.List(ctx, syncSetsList, client.InNamespace(cd.Namespace)); err != nil {
 		logger.WithError(err).Log(controllerutils.LogLevel(err), "could not list SyncSets")
 		return nil, err
 	}
@@ -1017,9 +1005,9 @@ func (r *ReconcileClusterSync) getSyncSetsForClusterDeployment(cd *hivev1.Cluste
 	return syncSets, nil
 }
 
-func (r *ReconcileClusterSync) getSelectorSyncSetsForClusterDeployment(cd *hivev1.ClusterDeployment, logger log.FieldLogger) ([]CommonSyncSet, error) {
+func (r *ReconcileClusterSync) getSelectorSyncSetsForClusterDeployment(ctx context.Context, cd *hivev1.ClusterDeployment, logger log.FieldLogger) ([]CommonSyncSet, error) {
 	selectorSyncSetsList := &hivev1.SelectorSyncSetList{}
-	if err := r.List(context.Background(), selectorSyncSetsList); err != nil {
+	if err := r.List(ctx, selectorSyncSetsList); err != nil {
 		logger.WithError(err).Log(controllerutils.LogLevel(err), "could not list SelectorSyncSets")
 		return nil, err
 	}
@@ -1049,6 +1037,16 @@ func doesSelectorSyncSetApplyToClusterDeployment(selectorSyncSet *hivev1.Selecto
 		return false
 	}
 	return labelSelector.Matches(labels.Set(cd.Labels))
+}
+
+// parseGVK parses an APIVersion and Kind into a schema.GroupVersionKind.
+// Returns an error if the APIVersion format is invalid.
+func parseGVK(apiVersion, kind string) (schema.GroupVersionKind, error) {
+	gv, err := schema.ParseGroupVersion(apiVersion)
+	if err != nil {
+		return schema.GroupVersionKind{}, err
+	}
+	return gv.WithKind(kind), nil
 }
 
 func setFailedCondition(clusterSync *hiveintv1alpha1.ClusterSync) {

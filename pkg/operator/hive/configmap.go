@@ -15,7 +15,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	hivecontractsv1alpha1 "github.com/openshift/hive/apis/hivecontracts/v1alpha1"
@@ -77,11 +76,7 @@ func (r *ReconcileHiveConfig) scrubOldManagedDomainsConfigMaps(h resource.Helper
 			cmLog = cmLog.WithField("name", cm.Name)
 			cmLog.Info("deleting out-of-date managed domains configmap")
 
-			gvk := schema.GroupVersionKind{
-				Group:   "",
-				Version: "v1",
-				Kind:    "ConfigMap",
-			}
+			gvk := corev1.SchemeGroupVersion.WithKind("ConfigMap")
 			if _, err := h.Delete(context.TODO(), gvk, cm.Namespace, cm.Name); err != nil {
 				cmLog.WithError(err).Error("failed to delete out-of-date managed domains configmap")
 			}
@@ -314,11 +309,7 @@ func (r *ReconcileHiveConfig) deployConfigMap(hLog log.FieldLogger, h resource.H
 	for _, ns := range namespacesToClean {
 		cmLog.WithField("namespace", ns).Info("Deleting configmap from old target namespace")
 
-		gvk := schema.GroupVersionKind{
-			Group:   "",
-			Version: "v1",
-			Kind:    "ConfigMap",
-		}
+		gvk := corev1.SchemeGroupVersion.WithKind("ConfigMap")
 		if _, err := h.Delete(context.TODO(), gvk, ns, cmInfo.name); err != nil {
 			return "", errors.Wrapf(err, "error deleting configmap/%s from old target namespace %s", cmInfo.name, ns)
 		}

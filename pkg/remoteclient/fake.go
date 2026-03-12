@@ -11,7 +11,6 @@ import (
 	testfake "github.com/openshift/hive/pkg/test/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/dynamic"
 	kubeclient "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -100,17 +99,6 @@ func (b *fakeBuilder) BuildWithContext(ctx context.Context) (client.Client, erro
 	}
 
 	return testfake.NewFakeClientBuilder().WithRuntimeObjects(fakeObjects...).Build(), nil
-}
-
-// BuildDynamicWithContext implements Builder.BuildDynamicWithContext().
-func (b *fakeBuilder) BuildDynamicWithContext(ctx context.Context) (dynamic.Interface, error) {
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	default:
-	}
-
-	return nil, errors.New("BuildDynamicWithContext not implemented for fake cluster client builder")
 }
 
 // BuildKubeClientWithContext implements Builder.BuildKubeClientWithContext().

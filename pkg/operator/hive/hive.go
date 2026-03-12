@@ -16,6 +16,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	appsv1 "k8s.io/api/apps/v1"
+	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -72,10 +73,9 @@ func (r *ReconcileHiveConfig) deployHive(hLog log.FieldLogger, h resource.Helper
 		// The hive-controller binary creates a configmap and lease to handle leader election. Delete them.
 		// TODO: Dedup this with const cmd/manager/main.go:leaderElectionLockName
 		lockName := "hive-controllers-leader"
-		// TODO: Something better than hardcoding apiVersion and kind.
 		toDel := map[string]schema.GroupVersionKind{
-			"ConfigMap": {Group: "", Version: "v1", Kind: "ConfigMap"},
-			"Lease":     {Group: "coordination.k8s.io", Version: "v1", Kind: "Lease"},
+			"ConfigMap": corev1.SchemeGroupVersion.WithKind("ConfigMap"),
+			"Lease":     coordinationv1.SchemeGroupVersion.WithKind("Lease"),
 		}
 		for name, gvk := range toDel {
 			hLog.Infof("Deleting %s/%s from old target namespace %s", name, lockName, ns)
@@ -161,21 +161,7 @@ func (r *ReconcileHiveConfig) deployHive(hLog log.FieldLogger, h resource.Helper
 		hiveContainer.Env = append(hiveContainer.Env, clusterVersionPollIntervalEnvVar)
 	}
 
-	// Configure shared client cache settings
-	if cacheConfig := instance.Spec.ClientCacheConfig; cacheConfig != nil {
-		if cacheConfig.MaxSize != nil {
-			hiveContainer.Env = append(hiveContainer.Env, corev1.EnvVar{
-				Name:  constants.ClientCacheMaxSizeEnvVar,
-				Value: strconv.Itoa(int(*cacheConfig.MaxSize)),
-			})
-		}
-		if cacheConfig.TTL != nil {
-			hiveContainer.Env = append(hiveContainer.Env, corev1.EnvVar{
-				Name:  constants.ClientCacheTTLEnvVar,
-				Value: *cacheConfig.TTL,
-			})
-		}
-	}
+	applyClientCacheConfig(instance, hiveContainer)
 
 	addConfigVolume(&hiveDeployment.Spec.Template.Spec, managedDomainsConfigMapInfo, hiveContainer)
 	addConfigVolume(&hiveDeployment.Spec.Template.Spec, awsPrivateLinkConfigMapInfo, hiveContainer)
@@ -398,11 +384,7 @@ func (r *ReconcileHiveConfig) includeAdditionalCAs(hLog log.FieldLogger, h resou
 	for _, ns := range namespacesToClean {
 		hLog.Infof("Deleting secret/%s from old target namespace %s", hiveAdditionalCASecret, ns)
 
-		gvk := schema.GroupVersionKind{
-			Group:   "",
-			Version: "v1",
-			Kind:    "Secret",
-		}
+		gvk := corev1.SchemeGroupVersion.WithKind("Secret")
 		if _, err := h.Delete(context.TODO(), gvk, ns, hiveAdditionalCASecret); err != nil {
 			return errors.Wrapf(err, "error deleting secret/%s from old target namespace %s", hiveAdditionalCASecret, ns)
 		}
@@ -426,11 +408,7 @@ func (r *ReconcileHiveConfig) includeAdditionalCAs(hLog log.FieldLogger, h resou
 	if additionalCA.Len() == 0 {
 		caSecret, err := r.hiveSecretLister.Secrets(hiveNS).Get(hiveAdditionalCASecret)
 		if err == nil {
-			gvk := schema.GroupVersionKind{
-				Group:   "",
-				Version: "v1",
-				Kind:    "Secret",
-			}
+			gvk := corev1.SchemeGroupVersion.WithKind("Secret")
 			_, err = h.Delete(context.TODO(), gvk, caSecret.Namespace, caSecret.Name)
 			if err != nil {
 				hLog.WithError(err).WithField("secret", fmt.Sprintf("%s/%s", hiveNS, hiveAdditionalCASecret)).

@@ -549,7 +549,6 @@ func (o *Options) Run() error {
 			return err
 		}
 		accessor.SetNamespace(o.Namespace)
-		// V2: Use Apply with context
 		if _, err := rh.Apply(context.TODO(), obj); err != nil {
 			return err
 		}

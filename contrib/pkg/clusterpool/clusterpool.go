@@ -246,7 +246,6 @@ func (o *ClusterPoolOptions) run() error {
 			return errors.Wrapf(err, "cannot create accessor for object of type %T", obj)
 		}
 		accessor.SetNamespace(o.Namespace)
-		// V2: Use Apply with context
 		if _, err := rh.Apply(context.TODO(), obj); err != nil {
 			return err
 		}

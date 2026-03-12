@@ -2,14 +2,12 @@ package hive
 
 import (
 	"context"
-	"strconv"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	apitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 
@@ -45,21 +43,7 @@ var (
 				container.Env = append(container.Env, syncsetReapplyIntervalEnvVar)
 			}
 
-			// Configure shared client cache settings
-			if cacheConfig := hiveconfig.Spec.ClientCacheConfig; cacheConfig != nil {
-				if cacheConfig.MaxSize != nil {
-					container.Env = append(container.Env, corev1.EnvVar{
-						Name:  constants.ClientCacheMaxSizeEnvVar,
-						Value: strconv.Itoa(int(*cacheConfig.MaxSize)),
-					})
-				}
-				if cacheConfig.TTL != nil {
-					container.Env = append(container.Env, corev1.EnvVar{
-						Name:  constants.ClientCacheTTLEnvVar,
-						Value: *cacheConfig.TTL,
-					})
-				}
-			}
+			applyClientCacheConfig(hiveconfig, container)
 		},
 	}
 
@@ -84,21 +68,7 @@ var (
 				})
 			}
 
-			// Configure shared client cache settings
-			if cacheConfig := hc.Spec.ClientCacheConfig; cacheConfig != nil {
-				if cacheConfig.MaxSize != nil {
-					c.Env = append(c.Env, corev1.EnvVar{
-						Name:  constants.ClientCacheMaxSizeEnvVar,
-						Value: strconv.Itoa(int(*cacheConfig.MaxSize)),
-					})
-				}
-				if cacheConfig.TTL != nil {
-					c.Env = append(c.Env, corev1.EnvVar{
-						Name:  constants.ClientCacheTTLEnvVar,
-						Value: *cacheConfig.TTL,
-					})
-				}
-			}
+			applyClientCacheConfig(hc, c)
 		},
 	}
 )
@@ -258,11 +228,7 @@ func (r *ReconcileHiveConfig) deployStatefulSet(c ssCfg, hLog log.FieldLogger, h
 			// The only fix is to delete the statefulset and have the apply below recreate it.
 			hLog.Infof("deleting the existing %s statefulset because spec has changed", c.name)
 
-			gvk := schema.GroupVersionKind{
-				Group:   "apps",
-				Version: "v1",
-				Kind:    "StatefulSet",
-			}
+			gvk := appsv1.SchemeGroupVersion.WithKind("StatefulSet")
 			_, err := h.Delete(context.TODO(), gvk, existingStatefulSet.Namespace, existingStatefulSet.Name)
 			if err != nil {
 				hLog.WithError(err).Error("error deleting statefulset")

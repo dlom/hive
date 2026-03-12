@@ -2416,6 +2416,39 @@ func testSecretRef(namespace, name string) hiveintv1alpha1.SyncResourceReference
 	}
 }
 
+// convertToJSONBytes converts various input types ([]byte, *unstructured.Unstructured, runtime.Object)
+// to JSON bytes. Returns nil if conversion fails or type is unsupported.
+func convertToJSONBytes(x any) []byte {
+	switch v := x.(type) {
+	case []byte:
+		return v
+	case *unstructured.Unstructured:
+		bytes, err := json.Marshal(v)
+		if err != nil {
+			return nil
+		}
+		return bytes
+	case runtime.Object:
+		bytes, err := json.Marshal(v)
+		if err != nil {
+			return nil
+		}
+		return bytes
+	default:
+		return nil
+	}
+}
+
+// formatMatcherInput formats the input for display in matcher error messages.
+func formatMatcherInput(got any) string {
+	switch t := got.(type) {
+	case []byte:
+		return string(t)
+	default:
+		return fmt.Sprintf("%v", t)
+	}
+}
+
 type applyMatcher struct {
 	resource *unstructured.Unstructured
 }
@@ -2443,25 +2476,13 @@ func newUnstructuredApplyMatcher(u unstructured.Unstructured) gomock.Matcher {
 }
 
 func (m *applyMatcher) Matches(x any) bool {
-	var u *unstructured.Unstructured
-	switch v := x.(type) {
-	case []byte:
-		// V1 API passed bytes
-		u = &unstructured.Unstructured{}
-		if err := json.Unmarshal(v, u); err != nil {
-			return false
-		}
-	case *unstructured.Unstructured:
-		// API passes unstructured directly
-		u = v
-	case runtime.Object:
-		// API can pass any runtime.Object
-		objMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(v)
-		if err != nil {
-			return false
-		}
-		u = &unstructured.Unstructured{Object: objMap}
-	default:
+	bytes := convertToJSONBytes(x)
+	if bytes == nil {
+		return false
+	}
+
+	u := &unstructured.Unstructured{}
+	if err := json.Unmarshal(bytes, u); err != nil {
 		return false
 	}
 	return reflect.DeepEqual(u, m.resource)
@@ -2477,12 +2498,7 @@ func (m *applyMatcher) String() string {
 }
 
 func (m *applyMatcher) Got(got any) string {
-	switch t := got.(type) {
-	case []byte:
-		return string(t)
-	default:
-		return fmt.Sprintf("%v", t)
-	}
+	return formatMatcherInput(got)
 }
 
 // yamlApplyMatcher is a gomock.Matcher for the payload parameter to resource.Apply that, on
@@ -2509,25 +2525,12 @@ func newYamlApplyMatcher(t *testing.T, yamlString string) gomock.Matcher {
 // Matches implements gomock.Matcher for yamlApplyMatcher such that, when a mismatch occurs,
 // the delta is emitted as a JSON patch string, allowing quick and easy visualization.
 func (m *yamlApplyMatcher) Matches(x any) bool {
-	var bytes []byte
-	switch v := x.(type) {
-	case []byte:
-		// V1 API passed bytes
-		bytes = v
-	case *unstructured.Unstructured:
-		// API passes unstructured directly
-		var err error
-		bytes, err = json.Marshal(v)
-		assert.NoError(m.t, err, "Failed to marshal unstructured to JSON")
-	case runtime.Object:
-		// API can pass any runtime.Object
-		var err error
-		bytes, err = json.Marshal(v)
-		assert.NoError(m.t, err, "Failed to marshal runtime.Object to JSON")
-	default:
+	bytes := convertToJSONBytes(x)
+	if bytes == nil {
 		assert.Fail(m.t, "Unexpectedly got %T instead of []byte or runtime.Object", x)
 		return false
 	}
+
 	diff, err := jsonpatch.CreateMergePatch(m.want, bytes)
 	assert.NoError(m.t, err, "Failed to generate merge patch from got\n%s\nto want\n%s", bytes, m.want)
 	diffString := string(diff)
@@ -2540,12 +2543,7 @@ func (m *yamlApplyMatcher) String() string {
 }
 
 func (m *yamlApplyMatcher) Got(got any) string {
-	switch t := got.(type) {
-	case []byte:
-		return string(t)
-	default:
-		return fmt.Sprintf("%v", t)
-	}
+	return formatMatcherInput(got)
 }
 
 // byteMatcher is a convenience gomock.Matcher that just makes mismatch failures print useful

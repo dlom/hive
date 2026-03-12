@@ -10,7 +10,6 @@ import (
 
 	gomock "github.com/golang/mock/gomock"
 	remoteclient "github.com/openshift/hive/pkg/remoteclient"
-	dynamic "k8s.io/client-go/dynamic"
 	kubernetes "k8s.io/client-go/kubernetes"
 	rest "k8s.io/client-go/rest"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
@@ -37,21 +36,6 @@ func NewMockBuilder(ctrl *gomock.Controller) *MockBuilder {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockBuilder) EXPECT() *MockBuilderMockRecorder {
 	return m.recorder
-}
-
-// BuildDynamicWithContext mocks base method.
-func (m *MockBuilder) BuildDynamicWithContext(ctx context.Context) (dynamic.Interface, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BuildDynamicWithContext", ctx)
-	ret0, _ := ret[0].(dynamic.Interface)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// BuildDynamicWithContext indicates an expected call of BuildDynamicWithContext.
-func (mr *MockBuilderMockRecorder) BuildDynamicWithContext(ctx interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BuildDynamicWithContext", reflect.TypeOf((*MockBuilder)(nil).BuildDynamicWithContext), ctx)
 }
 
 // BuildKubeClientWithContext mocks base method.

@@ -191,7 +191,6 @@ func Test_Unreachable(t *testing.T) {
 func Test_builder_Build(t *testing.T) {
 	cases := []struct {
 		name         string
-		dynamic      bool
 		overrideURL  string
 		expectedHost string
 	}{
@@ -204,17 +203,6 @@ func Test_builder_Build(t *testing.T) {
 			overrideURL:  "url-override",
 			expectedHost: "url-override",
 		},
-		{
-			name:         "no override, dynamic",
-			dynamic:      true,
-			expectedHost: apiURL,
-		},
-		{
-			name:         "override active, dynamic",
-			dynamic:      true,
-			overrideURL:  "url-override",
-			expectedHost: "url-override",
-		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -224,17 +212,9 @@ func Test_builder_Build(t *testing.T) {
 			kubeconfigSecret := testKubeconfigSecret(t)
 			c := fakeClient(cd, kubeconfigSecret)
 			builder := NewBuilder(c, cd, "test-controller-name")
-			var err error
-			if !tc.dynamic {
-				// BuildWithContext is expected to fail due to "no such host" error, as the BuildWithContext() method
-				// is responsible for testing reachability.
-				_, err = builder.BuildWithContext(context.Background())
-			} else {
-				rc, buildErr := builder.BuildDynamicWithContext(context.Background())
-				assert.NoError(t, buildErr, "unexpected error building dynamic client")
-				_, err = rc.Resource(hivev1.Resource("ClusterDeployment").WithVersion("v1")).
-					Get(context.Background(), "bad-name", metav1.GetOptions{})
-			}
+			// BuildWithContext is expected to fail due to "no such host" error, as the BuildWithContext() method
+			// is responsible for testing reachability.
+			_, err := builder.BuildWithContext(context.Background())
 			if assert.Error(t, err, "expected error") {
 				assert.Contains(t, err.Error(), tc.expectedHost, "expected to find host in error")
 				assert.Contains(t, err.Error(), "no such host", "expected to find \"no such host\" in error")

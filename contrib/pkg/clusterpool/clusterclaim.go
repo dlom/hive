@@ -64,7 +64,6 @@ func (o ClusterClaimOptions) run() error {
 		}
 	}
 	claim.Namespace = o.Namespace
-	// V2: Use Apply with context
 	if _, err := rh.Apply(context.TODO(), claim); err != nil {
 		return err
 	}

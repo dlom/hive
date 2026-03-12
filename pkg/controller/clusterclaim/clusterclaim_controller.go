@@ -400,47 +400,26 @@ func (r *ReconcileClusterClaim) cleanupResources(claim *hivev1.ClusterClaim, log
 	}
 
 	// Delete RoleBinding
-	roleBinding := &rbacv1.RoleBinding{}
-	rolebindingKey := client.ObjectKey{Namespace: clusterName, Name: hiveClaimOwnerRoleBindingName}
-	switch err := r.Get(context.Background(), rolebindingKey, roleBinding); {
-	case apierrors.IsNotFound(err):
-		logger.WithField("object", rolebindingKey).Debug("rolebinding does not exist")
-		rolebindingGone = true
-	case err != nil:
-		logger.WithError(err).Error("error getting rolebinding")
-		return false, errors.Wrap(err, "error getting rolebinding")
-	case roleBinding.GetDeletionTimestamp() != nil:
-		logger.WithField("object", rolebindingKey).Debug("rolebinding has already been deleted")
-		rolebindingGone = false
-	default:
-		logger.WithField("object", rolebindingKey).Info("deleting existing rolebinding")
-		if err := r.Delete(context.Background(), roleBinding); err != nil {
-			logger.WithError(err).Error("error deleting rolebinding")
-			return false, errors.Wrap(err, "error deleting rolebinding")
-		}
-		rolebindingGone = false
+	var err error
+	rolebindingGone, err = r.deleteAnyExistingObject(
+		&rbacv1.RoleBinding{},
+		client.ObjectKey{Namespace: clusterName, Name: hiveClaimOwnerRoleBindingName},
+		"rolebinding",
+		logger,
+	)
+	if err != nil {
+		return false, err
 	}
 
 	// Delete Role
-	role := &rbacv1.Role{}
-	roleKey := client.ObjectKey{Namespace: clusterName, Name: hiveClaimOwnerRoleName}
-	switch err := r.Get(context.Background(), roleKey, role); {
-	case apierrors.IsNotFound(err):
-		logger.WithField("object", roleKey).Debug("role does not exist")
-		roleGone = true
-	case err != nil:
-		logger.WithError(err).Error("error getting role")
-		return false, errors.Wrap(err, "error getting role")
-	case role.GetDeletionTimestamp() != nil:
-		logger.WithField("object", roleKey).Debug("role has already been deleted")
-		roleGone = false
-	default:
-		logger.WithField("object", roleKey).Info("deleting existing role")
-		if err := r.Delete(context.Background(), role); err != nil {
-			logger.WithError(err).Error("error deleting role")
-			return false, errors.Wrap(err, "error deleting role")
-		}
-		roleGone = false
+	roleGone, err = r.deleteAnyExistingObject(
+		&rbacv1.Role{},
+		client.ObjectKey{Namespace: clusterName, Name: hiveClaimOwnerRoleName},
+		"role",
+		logger,
+	)
+	if err != nil {
+		return false, err
 	}
 
 	// Delete ClusterDeployment
@@ -666,4 +645,28 @@ func (r *ReconcileClusterClaim) applyResource(desired, observed hivev1.MetaRunti
 		return errors.Wrap(err, "could not update resource")
 	}
 	return nil
+}
+
+// deleteAnyExistingObject attempts to delete a resource if it exists.
+// Returns true if the resource is gone (doesn't exist), false if it still exists (e.g., being deleted).
+func (r *ReconcileClusterClaim) deleteAnyExistingObject(obj client.Object, key client.ObjectKey, resourceType string, logger log.FieldLogger) (bool, error) {
+	logger = logger.WithField("object", key)
+	switch err := r.Get(context.Background(), key, obj); {
+	case apierrors.IsNotFound(err):
+		logger.Debugf("%s does not exist", resourceType)
+		return true, nil
+	case err != nil:
+		logger.WithError(err).Errorf("error getting %s", resourceType)
+		return false, errors.Wrapf(err, "error getting %s", resourceType)
+	case obj.GetDeletionTimestamp() != nil:
+		logger.Debugf("%s has already been deleted", resourceType)
+		return false, nil
+	default:
+		logger.Infof("deleting existing %s", resourceType)
+		if err := r.Delete(context.Background(), obj); err != nil {
+			logger.WithError(err).Errorf("error deleting %s", resourceType)
+			return false, errors.Wrapf(err, "error deleting %s", resourceType)
+		}
+		return false, nil
+	}
 }

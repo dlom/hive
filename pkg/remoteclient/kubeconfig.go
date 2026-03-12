@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/dynamic"
 	kubeclient "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
@@ -54,21 +53,6 @@ func (b *kubeconfigBuilder) BuildWithContext(ctx context.Context) (client.Client
 	}
 
 	return b.config.cache.Get(ctx, cacheKey, factory)
-}
-
-// BuildDynamicWithContext creates a dynamic client with context support.
-func (b *kubeconfigBuilder) BuildDynamicWithContext(ctx context.Context) (dynamic.Interface, error) {
-	cfg, err := b.RESTConfigWithContext(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	client, err := dynamic.NewForConfig(cfg)
-	if err != nil {
-		return nil, b.wrapError(err, "build-dynamic-client")
-	}
-
-	return client, nil
 }
 
 // BuildKubeClientWithContext creates a typed Kubernetes client with context support.

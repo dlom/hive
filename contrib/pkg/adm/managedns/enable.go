@@ -179,7 +179,6 @@ func (o *Options) Run(args []string) error {
 
 	log.Infof("created cloud credentials secret: %s", credsSecret.Name)
 	credsSecret.Namespace = hiveNSName
-	// V2: Use Apply with context
 	if _, err := rh.Apply(context.TODO(), credsSecret); err != nil {
 		log.WithError(err).Fatal("failed to save generated secret")
 	}

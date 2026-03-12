@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
+	"strconv"
 
 	log "github.com/sirupsen/logrus"
 
@@ -99,6 +100,23 @@ func getImagePullSecretReference(config *hivev1.HiveConfig) *corev1.LocalObjectR
 		return config.Spec.HiveImagePullSecretRef
 	}
 	return nil
+}
+
+func applyClientCacheConfig(hiveconfig *hivev1.HiveConfig, container *corev1.Container) {
+	if cacheConfig := hiveconfig.Spec.ClientCacheConfig; cacheConfig != nil {
+		if cacheConfig.MaxSize != nil {
+			container.Env = append(container.Env, corev1.EnvVar{
+				Name:  constants.ClientCacheMaxSizeEnvVar,
+				Value: strconv.Itoa(int(*cacheConfig.MaxSize)),
+			})
+		}
+		if cacheConfig.TTL != nil {
+			container.Env = append(container.Env, corev1.EnvVar{
+				Name:  constants.ClientCacheTTLEnvVar,
+				Value: *cacheConfig.TTL,
+			})
+		}
+	}
 }
 
 func readRuntimeObjectOrDie[T any](sgv schema.GroupVersion, objBytes []byte) T {

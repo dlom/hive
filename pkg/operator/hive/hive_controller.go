@@ -20,7 +20,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -613,11 +612,7 @@ func (r *ReconcileHiveConfig) Reconcile(ctx context.Context, request reconcile.R
 	// accepting the fact that we might be leaking namespaces.
 	for _, ns := range namespacesToClean {
 		hLog.Infof("Unlabeling former target namespace %s", ns)
-		gvk := schema.GroupVersionKind{
-			Group:   "",
-			Version: "v1",
-			Kind:    "Namespace",
-		}
+		gvk := corev1.SchemeGroupVersion.WithKind("Namespace")
 		patch := []byte(fmt.Sprintf(`{"metadata": {"labels": {"%s": null}}}`, targetNamespaceLabel))
 		if _, err := h.PatchWithObject(context.TODO(), gvk, "", ns, patch); err != nil {
 			hLog.WithError(err).Errorf("error unlabeling former target namespace %s", ns)
