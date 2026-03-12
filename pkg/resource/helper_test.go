@@ -16,44 +16,44 @@ import (
 	"github.com/openshift/hive/pkg/util/scheme"
 )
 
-func TestNewHelperV2(t *testing.T) {
+func TestNewHelper(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 
 	tests := []struct {
 		name    string
-		options []HelperV2Option
+		options []HelperOption
 		wantErr bool
 		errMsg  string
 	}{
 		{
 			name: "create with client",
-			options: []HelperV2Option{
+			options: []HelperOption{
 				WithClient(newFakeClient()),
-				WithControllerNameV2(hivev1.ClustersyncControllerName),
+				WithControllerName(hivev1.ClustersyncControllerName),
 			},
 			wantErr: false,
 		},
 		{
 			name: "create with REST config",
-			options: []HelperV2Option{
-				WithRESTConfigV2(&rest.Config{
+			options: []HelperOption{
+				WithRESTConfig(&rest.Config{
 					Host: "https://api.example.com",
 				}),
-				WithControllerNameV2(hivev1.ClustersyncControllerName),
+				WithControllerName(hivev1.ClustersyncControllerName),
 			},
 			wantErr: false,
 		},
 		{
 			name: "create with controller name only",
-			options: []HelperV2Option{
+			options: []HelperOption{
 				WithClient(newFakeClient()),
-				WithControllerNameV2(hivev1.ClustersyncControllerName),
+				WithControllerName(hivev1.ClustersyncControllerName),
 			},
 			wantErr: false,
 		},
 		{
 			name:    "fail without client or REST config",
-			options: []HelperV2Option{},
+			options: []HelperOption{},
 			wantErr: true,
 			errMsg:  "neither client nor REST config provided",
 		},
@@ -61,7 +61,7 @@ func TestNewHelperV2(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			helper, err := NewHelperV2(logger, tt.options...)
+			helper, err := NewHelper(logger, tt.options...)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -73,48 +73,48 @@ func TestNewHelperV2(t *testing.T) {
 				require.NoError(t, err)
 				assert.NotNil(t, helper)
 
-				// Verify helper implements HelperV2 interface
-				_, ok := helper.(HelperV2)
-				assert.True(t, ok, "helper should implement HelperV2 interface")
+				// Verify helper implements Helper interface
+				_, ok := helper.(Helper)
+				assert.True(t, ok, "helper should implement Helper interface")
 			}
 		})
 	}
 }
 
-func TestHelperV2Options(t *testing.T) {
+func TestHelperOptions(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 
 	t.Run("WithClient option", func(t *testing.T) {
 		fakeClient := newFakeClient()
-		helper, err := NewHelperV2(logger, WithClient(fakeClient))
+		helper, err := NewHelper(logger, WithClient(fakeClient))
 		require.NoError(t, err)
 		assert.NotNil(t, helper)
 
-		h := helper.(*helperV2)
+		h := helper.(*helperImpl)
 		assert.Equal(t, fakeClient, h.client)
 	})
 
-	t.Run("WithControllerNameV2 option", func(t *testing.T) {
+	t.Run("WithControllerName option", func(t *testing.T) {
 		controllerName := hivev1.ClustersyncControllerName
-		helper, err := NewHelperV2(logger,
+		helper, err := NewHelper(logger,
 			WithClient(newFakeClient()),
-			WithControllerNameV2(controllerName),
+			WithControllerName(controllerName),
 		)
 		require.NoError(t, err)
 		assert.NotNil(t, helper)
 
-		h := helper.(*helperV2)
+		h := helper.(*helperImpl)
 		assert.Equal(t, controllerName, h.controllerName)
 	})
 }
 
-func TestHelperV2Interface(t *testing.T) {
+func TestHelperInterface(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 	ctx := context.Background()
 
-	helper, err := NewHelperV2(logger,
+	helper, err := NewHelper(logger,
 		WithClient(newFakeClient()),
-		WithControllerNameV2(hivev1.ClustersyncControllerName),
+		WithControllerName(hivev1.ClustersyncControllerName),
 	)
 	require.NoError(t, err)
 
@@ -136,7 +136,7 @@ data:
 `)
 		result, err := helper.Apply(ctx, yamlData)
 		require.NoError(t, err)
-		assert.Equal(t, CreatedV2, result.State)
+		assert.Equal(t, Created, result.State)
 	})
 
 	t.Run("implements Patch method", func(t *testing.T) {
@@ -150,12 +150,12 @@ data:
 	})
 }
 
-func TestHelperV2ContextCancellation(t *testing.T) {
+func TestHelperContextCancellation(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 
-	helper, err := NewHelperV2(logger,
+	helper, err := NewHelper(logger,
 		WithClient(newFakeClient()),
-		WithControllerNameV2(hivev1.ClustersyncControllerName),
+		WithControllerName(hivev1.ClustersyncControllerName),
 	)
 	require.NoError(t, err)
 
@@ -179,12 +179,12 @@ metadata:
 	})
 }
 
-func TestHelperV2ThreadSafety(t *testing.T) {
+func TestHelperThreadSafety(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 
-	helper, err := NewHelperV2(logger,
+	helper, err := NewHelper(logger,
 		WithClient(newFakeClient()),
-		WithControllerNameV2(hivev1.ClustersyncControllerName),
+		WithControllerName(hivev1.ClustersyncControllerName),
 	)
 	require.NoError(t, err)
 

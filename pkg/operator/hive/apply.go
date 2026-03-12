@@ -129,23 +129,23 @@ func fromBytes(assetBytes []byte) toRuntimeObject {
 // - Executes rtoFactory to produce a runtime object.
 // - Modifies the runtime object according to opts.
 // - Applies the runtime object to the cluster via h.
-func applyRuntimeObject(h resource.HelperV2, rtoFactory toRuntimeObject, hLog log.FieldLogger, opts ...rtoApplyOpt) (resource.ApplyResultV2, error) {
+func applyRuntimeObject(h resource.Helper, rtoFactory toRuntimeObject, hLog log.FieldLogger, opts ...rtoApplyOpt) (resource.ApplyResult, error) {
 	requiredObj, err := rtoFactory(hLog)
 	if err != nil {
 		hLog.WithError(err).Error("failed to convert to runtime object")
-		return resource.ApplyResultV2{}, err
+		return resource.ApplyResult{}, err
 	}
 	for _, opt := range opts {
 		if err := opt(requiredObj, hLog); err != nil {
 			hLog.WithError(err).Error("failed to apply option to runtime object")
-			return resource.ApplyResultV2{}, err
+			return resource.ApplyResult{}, err
 		}
 	}
 	result, err := h.Apply(context.TODO(), requiredObj)
 	return result, err
 }
 
-func deleteAssetByPathWithNSOverride(h resource.HelperV2, assetPath, namespaceOverride string, hiveconfig *hivev1.HiveConfig) error {
+func deleteAssetByPathWithNSOverride(h resource.Helper, assetPath, namespaceOverride string, hiveconfig *hivev1.HiveConfig) error {
 	requiredObj, err := readRuntimeObject(assetPath)
 	if err != nil {
 		return errors.Wrapf(err, "unable to decode asset: %s", assetPath)
@@ -153,7 +153,7 @@ func deleteAssetByPathWithNSOverride(h resource.HelperV2, assetPath, namespaceOv
 	return deleteRuntimeObjectWithNSOverride(h, requiredObj, namespaceOverride, hiveconfig)
 }
 
-func deleteAssetBytesWithNSOverride(h resource.HelperV2, assetBytes []byte, namespaceOverride string, hiveconfig *hivev1.HiveConfig) error {
+func deleteAssetBytesWithNSOverride(h resource.Helper, assetBytes []byte, namespaceOverride string, hiveconfig *hivev1.HiveConfig) error {
 	rtObj, err := decodeRuntimeObject(assetBytes)
 	if err != nil {
 		return errors.Wrap(err, "unable to decode asset")
@@ -161,7 +161,7 @@ func deleteAssetBytesWithNSOverride(h resource.HelperV2, assetBytes []byte, name
 	return deleteRuntimeObjectWithNSOverride(h, rtObj, namespaceOverride, hiveconfig)
 }
 
-func deleteRuntimeObjectWithNSOverride(h resource.HelperV2, requiredObj runtime.Object, namespaceOverride string, hiveconfig *hivev1.HiveConfig) error {
+func deleteRuntimeObjectWithNSOverride(h resource.Helper, requiredObj runtime.Object, namespaceOverride string, hiveconfig *hivev1.HiveConfig) error {
 	objA, _ := meta.Accessor(requiredObj)
 
 	// Get GVK from the runtime object

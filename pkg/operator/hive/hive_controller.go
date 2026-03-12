@@ -424,7 +424,7 @@ func (r *ReconcileHiveConfig) Reconcile(ctx context.Context, request reconcile.R
 		return reconcile.Result{}, err
 	}
 
-	h, err := resource.NewHelperV2(hLog, resource.WithRESTConfigV2(r.restConfig), resource.WithControllerNameV2("operator"))
+	h, err := resource.NewHelper(hLog, resource.WithRESTConfig(r.restConfig), resource.WithControllerName("operator"))
 	if err != nil {
 		hLog.WithError(err).Error("error creating resource helper")
 		instance.Status.Conditions = SetHiveConfigCondition(instance.Status.Conditions, hivev1.HiveReadyCondition, corev1.ConditionFalse, "ErrorCreatingResourceHelper", err.Error())

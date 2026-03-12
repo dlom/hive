@@ -312,9 +312,9 @@ type fakeApplier struct {
 	appliedObjects []runtime.Object
 }
 
-func (a *fakeApplier) Apply(ctx context.Context, obj interface{}, opts ...resource.ApplyOption) (resource.ApplyResultV2, error) {
+func (a *fakeApplier) Apply(ctx context.Context, obj interface{}, opts ...resource.ApplyOption) (resource.ApplyResult, error) {
 	a.appliedObjects = append(a.appliedObjects, obj.(runtime.Object))
-	return resource.ApplyResultV2{State: resource.ConfiguredV2}, nil
+	return resource.ApplyResult{State: resource.Configured}, nil
 }
 
 type fakeClusterDeploymentWrapper struct {

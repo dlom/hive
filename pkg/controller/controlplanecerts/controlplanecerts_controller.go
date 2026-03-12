@@ -64,7 +64,7 @@ var (
 )
 
 type applier interface {
-	Apply(ctx context.Context, obj interface{}, opts ...resource.ApplyOption) (resource.ApplyResultV2, error)
+	Apply(ctx context.Context, obj interface{}, opts ...resource.ApplyOption) (resource.ApplyResult, error)
 }
 
 // Add creates a new ControlPlaneCerts Controller and adds it to the Manager with default RBAC. The Manager will set fields on the Controller
@@ -85,10 +85,10 @@ func NewReconciler(mgr manager.Manager, rateLimiter flowcontrol.RateLimiter) rec
 	localClient := controllerutils.NewClientWithMetricsOrDie(mgr, ControllerName, &rateLimiter)
 
 	// V2: Create helper with local client for Server-Side Apply
-	helper, err := resource.NewHelperV2(
+	helper, err := resource.NewHelper(
 		logger,
 		resource.WithClient(localClient),
-		resource.WithControllerNameV2(ControllerName))
+		resource.WithControllerName(ControllerName))
 	if err != nil {
 		// Hard exit if we can't create this controller
 		logger.WithError(err).Fatal("unable to create resource helper")

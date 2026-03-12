@@ -28,7 +28,7 @@ import (
 //   - Automatic field ownership tracking
 //   - No client-side three-way merge
 //   - No OpenAPI schema required
-func (h *helperV2) Apply(ctx context.Context, obj interface{}, opts ...ApplyOption) (ApplyResultV2, error) {
+func (h *helperImpl) Apply(ctx context.Context, obj interface{}, opts ...ApplyOption) (ApplyResult, error) {
 	startTime := time.Now()
 
 	// Parse options
@@ -44,7 +44,7 @@ func (h *helperV2) Apply(ctx context.Context, obj interface{}, opts ...ApplyOpti
 	// Convert input to unstructured
 	unstructuredObj, gvk, err := h.toUnstructured(obj)
 	if err != nil {
-		return ApplyResultV2{}, h.wrapError(err, "parse-object", gvk, "", "")
+		return ApplyResult{}, h.wrapError(err, "parse-object", gvk, "", "")
 	}
 
 	// Check if object exists (for state determination)
@@ -55,7 +55,7 @@ func (h *helperV2) Apply(ctx context.Context, obj interface{}, opts ...ApplyOpti
 	exists := false
 	if err := h.client.Get(ctx, objectKey, existingObj); err != nil {
 		if !apierrors.IsNotFound(err) {
-			return ApplyResultV2{}, h.wrapError(err, "get-existing", gvk, objectKey.Namespace, objectKey.Name)
+			return ApplyResult{}, h.wrapError(err, "get-existing", gvk, objectKey.Namespace, objectKey.Name)
 		}
 		// Not found - will be created
 	} else {
@@ -85,24 +85,24 @@ func (h *helperV2) Apply(ctx context.Context, obj interface{}, opts ...ApplyOpti
 		// Record operation metrics
 		h.recordOperation("apply", gvk, "failure", time.Since(startTime).Seconds())
 
-		return ApplyResultV2{}, h.wrapError(err, "apply", gvk, objectKey.Namespace, objectKey.Name)
+		return ApplyResult{}, h.wrapError(err, "apply", gvk, objectKey.Namespace, objectKey.Name)
 	}
 
 	// Determine result state
-	state := ConfiguredV2
+	state := Configured
 	if !exists {
-		state = CreatedV2
+		state = Created
 	} else {
 		// Check if anything actually changed by comparing generation or resourceVersion
-		// For now, we assume ConfiguredV2 if it existed
+		// For now, we assume Configured if it existed
 		// A more sophisticated check would compare the objects
-		state = ConfiguredV2
+		state = Configured
 	}
 
 	// Record success metrics
 	h.recordOperation("apply", gvk, "success", time.Since(startTime).Seconds())
 
-	return ApplyResultV2{
+	return ApplyResult{
 		State:  state,
 		Object: unstructuredObj,
 		GVK:    gvk,
@@ -114,7 +114,7 @@ func (h *helperV2) Apply(ctx context.Context, obj interface{}, opts ...ApplyOpti
 //   - []byte (YAML or JSON)
 //   - runtime.Object
 //   - *unstructured.Unstructured
-func (h *helperV2) toUnstructured(obj interface{}) (*unstructured.Unstructured, schema.GroupVersionKind, error) {
+func (h *helperImpl) toUnstructured(obj interface{}) (*unstructured.Unstructured, schema.GroupVersionKind, error) {
 	switch v := obj.(type) {
 	case []byte:
 		// Parse YAML/JSON to unstructured
@@ -134,7 +134,7 @@ func (h *helperV2) toUnstructured(obj interface{}) (*unstructured.Unstructured, 
 }
 
 // parseBytes parses YAML or JSON bytes to unstructured.
-func (h *helperV2) parseBytes(data []byte) (*unstructured.Unstructured, schema.GroupVersionKind, error) {
+func (h *helperImpl) parseBytes(data []byte) (*unstructured.Unstructured, schema.GroupVersionKind, error) {
 	// Decode YAML/JSON
 	obj := &unstructured.Unstructured{}
 	decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader(data), 4096)
@@ -152,7 +152,7 @@ func (h *helperV2) parseBytes(data []byte) (*unstructured.Unstructured, schema.G
 }
 
 // runtimeObjectToUnstructured converts a runtime.Object to unstructured.
-func (h *helperV2) runtimeObjectToUnstructured(obj runtime.Object) (*unstructured.Unstructured, schema.GroupVersionKind, error) {
+func (h *helperImpl) runtimeObjectToUnstructured(obj runtime.Object) (*unstructured.Unstructured, schema.GroupVersionKind, error) {
 	// Get GVK
 	gvks, _, err := scheme.GetScheme().ObjectKinds(obj)
 	if err != nil {
@@ -176,7 +176,7 @@ func (h *helperV2) runtimeObjectToUnstructured(obj runtime.Object) (*unstructure
 }
 
 // wrapError wraps an error with cluster and resource context.
-func (h *helperV2) wrapError(err error, operation string, gvk schema.GroupVersionKind, namespace, name string) error {
+func (h *helperImpl) wrapError(err error, operation string, gvk schema.GroupVersionKind, namespace, name string) error {
 	if err == nil {
 		return nil
 	}
@@ -192,7 +192,7 @@ func (h *helperV2) wrapError(err error, operation string, gvk schema.GroupVersio
 }
 
 // recordOperation records operation metrics.
-func (h *helperV2) recordOperation(operation string, gvk schema.GroupVersionKind, result string, duration float64) {
+func (h *helperImpl) recordOperation(operation string, gvk schema.GroupVersionKind, result string, duration float64) {
 	if h.controllerName == "" {
 		return
 	}

@@ -62,7 +62,7 @@ var managedDomainsConfigMapInfo = configMapInfo{
 	},
 }
 
-func (r *ReconcileHiveConfig) scrubOldManagedDomainsConfigMaps(h resource.HelperV2, logger log.FieldLogger, namespaces ...string) error {
+func (r *ReconcileHiveConfig) scrubOldManagedDomainsConfigMaps(h resource.Helper, logger log.FieldLogger, namespaces ...string) error {
 	for _, ns := range namespaces {
 		cmLog := logger.WithField("namespace", ns)
 
@@ -307,7 +307,7 @@ var featureGatesConfigMapInfo = configMapInfo{
 //
 // namespacesToClean is a list of strings indicating former target namespaces from which this configmap
 // is to be deleted.
-func (r *ReconcileHiveConfig) deployConfigMap(hLog log.FieldLogger, h resource.HelperV2, instance *hivev1.HiveConfig, cmInfo configMapInfo, namespacesToClean []string) (string, error) {
+func (r *ReconcileHiveConfig) deployConfigMap(hLog log.FieldLogger, h resource.Helper, instance *hivev1.HiveConfig, cmInfo configMapInfo, namespacesToClean []string) (string, error) {
 	cmLog := hLog.WithField("configMap.name", cmInfo.name)
 
 	// Delete the configmap from previous target namespaces

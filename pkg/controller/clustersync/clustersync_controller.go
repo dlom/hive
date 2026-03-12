@@ -175,11 +175,11 @@ func resourceHelperBuilderFuncV2(
 	remoteClusterAPIClientBuilderFunc func(cd *hivev1.ClusterDeployment) remoteclient.Builder,
 	logger log.FieldLogger,
 ) (
-	resource.HelperV2,
+	resource.Helper,
 	error,
 ) {
 	if controllerutils.IsFakeCluster(cd) {
-		return resource.NewFakeHelperV2(logger), nil
+		return resource.NewFakeHelper(logger), nil
 	}
 
 	// Build client with context (enables caching and timeout)
@@ -190,9 +190,9 @@ func resourceHelperBuilderFuncV2(
 	}
 
 	// Create helper directly from client (no REST config needed)
-	return resource.NewHelperV2(logger,
+	return resource.NewHelper(logger,
 		resource.WithClient(remoteClient),
-		resource.WithControllerNameV2(ControllerName))
+		resource.WithControllerName(ControllerName))
 }
 
 // AddToManager adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -284,7 +284,7 @@ type ReconcileClusterSync struct {
 	clientCache clientutil.ClientCache
 
 	// resourceHelperBuilder creates a v2 resource helper with Server-Side Apply and context support
-	resourceHelperBuilder func(context.Context, *hivev1.ClusterDeployment, func(cd *hivev1.ClusterDeployment) remoteclient.Builder, log.FieldLogger) (resource.HelperV2, error)
+	resourceHelperBuilder func(context.Context, *hivev1.ClusterDeployment, func(cd *hivev1.ClusterDeployment) remoteclient.Builder, log.FieldLogger) (resource.Helper, error)
 
 	// remoteClusterAPIClientBuilder is a function pointer to the function that gets a builder for building a client
 	// for the remote cluster's API server (v2 with caching)
@@ -501,7 +501,7 @@ func (r *ReconcileClusterSync) applySyncSets(
 	syncStatuses []hiveintv1alpha1.SyncStatus,
 	needToDoFullReapply bool,
 	reportSelectorSyncSetMetrics bool,
-	resourceHelper resource.HelperV2,
+	resourceHelper resource.Helper,
 	logger log.FieldLogger,
 ) (newSyncStatuses []hiveintv1alpha1.SyncStatus, requeue bool) {
 	// Sort the syncsets to a consistent ordering. This prevents thrashing in the ClusterSync status due to the order
@@ -684,7 +684,7 @@ func (r *ReconcileClusterSync) applySyncSet(
 	ctx context.Context,
 	syncSet CommonSyncSet,
 	cd *hivev1.ClusterDeployment,
-	resourceHelper resource.HelperV2,
+	resourceHelper resource.Helper,
 	logger log.FieldLogger,
 ) (
 	resourcesApplied []hiveintv1alpha1.SyncResourceReference,
@@ -808,7 +808,7 @@ func (r *ReconcileClusterSync) applyResourceV2(
 	resourceIndex int,
 	resource *unstructured.Unstructured,
 	reference hiveintv1alpha1.SyncResourceReference,
-	resourceHelper resource.HelperV2,
+	resourceHelper resource.Helper,
 	applyFnMetricsLabel string,
 	logger log.FieldLogger,
 ) (returnErr error, requeue bool) {
@@ -830,7 +830,7 @@ func (r *ReconcileClusterSync) applySecretV2(
 	secretIndex int,
 	secretMapping hivev1.SecretMapping,
 	reference hiveintv1alpha1.SyncResourceReference,
-	resourceHelper resource.HelperV2,
+	resourceHelper resource.Helper,
 	applyFnMetricsLabel string,
 	logger log.FieldLogger,
 ) (returnErr error, requeue bool) {
@@ -889,7 +889,7 @@ func (r *ReconcileClusterSync) applyPatchV2(
 	ctx context.Context,
 	patchIndex int,
 	patch hivev1.SyncObjectPatch,
-	resourceHelper resource.HelperV2,
+	resourceHelper resource.Helper,
 	logger log.FieldLogger,
 ) (returnErr error, requeue bool) {
 	logger = logger.WithField("patchIndex", patchIndex).
@@ -922,7 +922,7 @@ func applyToTargetClusterV2(
 	ctx context.Context,
 	obj hivev1.MetaRuntimeObject,
 	applyFnMetricLabel string,
-	resourceHelper resource.HelperV2,
+	resourceHelper resource.Helper,
 	logger log.FieldLogger,
 ) error {
 	startTime := time.Now()
@@ -946,11 +946,11 @@ func applyToTargetClusterV2(
 		// V2: Use structured result
 		var resultStr string
 		switch result.State {
-		case resource.CreatedV2:
+		case resource.Created:
 			resultStr = "created"
-		case resource.ConfiguredV2:
+		case resource.Configured:
 			resultStr = "configured"
-		case resource.UnchangedV2:
+		case resource.Unchanged:
 			resultStr = "unchanged"
 		}
 		logger.WithField("applyResult", resultStr).Debug("resource applied")
@@ -964,7 +964,7 @@ func deleteFromTargetClusterV2(
 	ctx context.Context,
 	resources []hiveintv1alpha1.SyncResourceReference,
 	shouldDelete func(hiveintv1alpha1.SyncResourceReference) bool,
-	resourceHelper resource.HelperV2,
+	resourceHelper resource.Helper,
 	logger log.FieldLogger,
 ) (remainingResources []hiveintv1alpha1.SyncResourceReference, returnErr error) {
 	var allErrs []error
@@ -995,7 +995,7 @@ func deleteFromTargetClusterV2(
 			logger.WithError(err).Warn("could not delete resource")
 			allErrs = append(allErrs, fmt.Errorf("failed to delete %s, Kind=%s %s/%s: %w", r.APIVersion, r.Kind, r.Namespace, r.Name, err))
 			remainingResources = append(remainingResources, r)
-		} else if result.State == resource.DeletionInProgressV2 {
+		} else if result.State == resource.DeletionInProgress {
 			// Resource has finalizers, still deleting
 			logger.Debug("resource deletion in progress (finalizers present)")
 			remainingResources = append(remainingResources, r)

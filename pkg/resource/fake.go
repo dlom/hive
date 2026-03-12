@@ -9,24 +9,24 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// fakeHelperV2 is a dummy implementation of HelperV2 for testing and simulation.
+// fakeHelper is a dummy implementation of Helper for testing and simulation.
 // Used when communicating with a cluster flagged as fake for simulated scale testing.
-type fakeHelperV2 struct {
+type fakeHelper struct {
 	logger log.FieldLogger
 }
 
-// NewFakeHelperV2 returns a new fake v2 helper that does not actually communicate with the cluster.
-func NewFakeHelperV2(logger log.FieldLogger) HelperV2 {
-	return &fakeHelperV2{
+// NewFakeHelper returns a new fake v2 helper that does not actually communicate with the cluster.
+func NewFakeHelper(logger log.FieldLogger) Helper {
+	return &fakeHelper{
 		logger: logger,
 	}
 }
 
-func (h *fakeHelperV2) Apply(ctx context.Context, obj interface{}, opts ...ApplyOption) (ApplyResultV2, error) {
+func (h *fakeHelper) Apply(ctx context.Context, obj interface{}, opts ...ApplyOption) (ApplyResult, error) {
 	// Check context cancellation
 	select {
 	case <-ctx.Done():
-		return ApplyResultV2{}, ctx.Err()
+		return ApplyResult{}, ctx.Err()
 	default:
 	}
 
@@ -34,8 +34,8 @@ func (h *fakeHelperV2) Apply(ctx context.Context, obj interface{}, opts ...Apply
 	h.fakeApplySleep()
 
 	// Simulate successful apply - assume configured (resource updated)
-	return ApplyResultV2{
-		State: ConfiguredV2,
+	return ApplyResult{
+		State: Configured,
 		GVK: schema.GroupVersionKind{
 			Group:   "",
 			Version: "v1",
@@ -44,11 +44,11 @@ func (h *fakeHelperV2) Apply(ctx context.Context, obj interface{}, opts ...Apply
 	}, nil
 }
 
-func (h *fakeHelperV2) Patch(ctx context.Context, obj interface{}, patch []byte, opts ...PatchOption) (PatchResultV2, error) {
+func (h *fakeHelper) Patch(ctx context.Context, obj interface{}, patch []byte, opts ...PatchOption) (PatchResult, error) {
 	// Check context cancellation
 	select {
 	case <-ctx.Done():
-		return PatchResultV2{}, ctx.Err()
+		return PatchResult{}, ctx.Err()
 	default:
 	}
 
@@ -56,22 +56,22 @@ func (h *fakeHelperV2) Patch(ctx context.Context, obj interface{}, patch []byte,
 	h.fakePatchSleep()
 
 	// Simulate successful patch
-	return PatchResultV2{
-		State: PatchedV2,
+	return PatchResult{
+		State: Patched,
 	}, nil
 }
 
-func (h *fakeHelperV2) PatchWithObject(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, patch []byte, opts ...PatchOption) (PatchResultV2, error) {
+func (h *fakeHelper) PatchWithObject(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, patch []byte, opts ...PatchOption) (PatchResult, error) {
 	// Delegate to Patch method
 	// In a fake implementation, we don't need to actually construct the full object
 	return h.Patch(ctx, nil, patch, opts...)
 }
 
-func (h *fakeHelperV2) Delete(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, opts ...DeleteOption) (DeleteResultV2, error) {
+func (h *fakeHelper) Delete(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, opts ...DeleteOption) (DeleteResult, error) {
 	// Check context cancellation
 	select {
 	case <-ctx.Done():
-		return DeleteResultV2{}, ctx.Err()
+		return DeleteResult{}, ctx.Err()
 	default:
 	}
 
@@ -79,12 +79,12 @@ func (h *fakeHelperV2) Delete(ctx context.Context, gvk schema.GroupVersionKind, 
 	h.fakeDeleteSleep()
 
 	// Simulate successful deletion
-	return DeleteResultV2{
-		State: DeletedV2,
+	return DeleteResult{
+		State: Deleted,
 	}, nil
 }
 
-func (h *fakeHelperV2) fakeApplySleep() {
+func (h *fakeHelper) fakeApplySleep() {
 	// Real world data for apply operations
 	// 50% of requests are under 0.027s
 	// 80% of requests are under 0.045s
@@ -97,7 +97,7 @@ func (h *fakeHelperV2) fakeApplySleep() {
 	time.Sleep(wait)
 }
 
-func (h *fakeHelperV2) fakePatchSleep() {
+func (h *fakeHelper) fakePatchSleep() {
 	// Patch is typically faster than apply
 	in := []int{15, 15, 15, 20, 20, 25, 30, 40, 50, 100} // milliseconds
 	randomIndex := rand.Intn(len(in))
@@ -106,7 +106,7 @@ func (h *fakeHelperV2) fakePatchSleep() {
 	time.Sleep(wait)
 }
 
-func (h *fakeHelperV2) fakeDeleteSleep() {
+func (h *fakeHelper) fakeDeleteSleep() {
 	// Delete is typically fast
 	in := []int{10, 10, 15, 15, 20, 20, 25, 30, 40, 80} // milliseconds
 	randomIndex := rand.Intn(len(in))

@@ -22,7 +22,7 @@ import (
 //   - types.MergePatchType (JSON Merge Patch - RFC 7386) - Simple merge
 //   - types.JSONPatchType (JSON Patch - RFC 6902) - Array of operations
 //   - types.ApplyPatchType (Server-Side Apply) - Recommended
-func (h *helperV2) Patch(ctx context.Context, obj interface{}, patch []byte, opts ...PatchOption) (PatchResultV2, error) {
+func (h *helperImpl) Patch(ctx context.Context, obj interface{}, patch []byte, opts ...PatchOption) (PatchResult, error) {
 	startTime := time.Now()
 
 	// Parse options
@@ -37,7 +37,7 @@ func (h *helperV2) Patch(ctx context.Context, obj interface{}, patch []byte, opt
 	// Convert input to unstructured
 	unstructuredObj, gvk, err := h.toUnstructured(obj)
 	if err != nil {
-		return PatchResultV2{}, h.wrapError(err, "parse-object", gvk, "", "")
+		return PatchResult{}, h.wrapError(err, "parse-object", gvk, "", "")
 	}
 
 	objectKey := client.ObjectKeyFromObject(unstructuredObj)
@@ -55,29 +55,29 @@ func (h *helperV2) Patch(ctx context.Context, obj interface{}, patch []byte, opt
 		// Record operation metrics
 		h.recordOperation("patch", gvk, "failure", time.Since(startTime).Seconds())
 
-		return PatchResultV2{}, h.wrapError(err, "patch", gvk, objectKey.Namespace, objectKey.Name)
+		return PatchResult{}, h.wrapError(err, "patch", gvk, objectKey.Namespace, objectKey.Name)
 	}
 
 	// Record success metrics
 	h.recordOperation("patch", gvk, "success", time.Since(startTime).Seconds())
 
-	// For now, we assume PatchedV2 if no error
+	// For now, we assume Patched if no error
 	// A more sophisticated implementation could compare before/after
-	return PatchResultV2{
-		State:  PatchedV2,
+	return PatchResult{
+		State:  Patched,
 		Object: unstructuredObj,
 	}, nil
 }
 
 // PatchWithObject patches a resource by name and kind using the patch data.
 // This is useful when you have the resource identity but not the full object.
-func (h *helperV2) PatchWithObject(
+func (h *helperImpl) PatchWithObject(
 	ctx context.Context,
 	gvk schema.GroupVersionKind,
 	namespace, name string,
 	patch []byte,
 	opts ...PatchOption,
-) (PatchResultV2, error) {
+) (PatchResult, error) {
 	// Create minimal unstructured object with identity
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(gvk)

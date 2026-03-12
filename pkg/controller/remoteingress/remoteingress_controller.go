@@ -90,7 +90,7 @@ func NewReconciler(mgr manager.Manager, rateLimiter flowcontrol.RateLimiter) rec
 	helper, err := resource.NewHelperV2(
 		logger,
 		resource.WithClient(localClient),
-		resource.WithControllerNameV2(ControllerName))
+		resource.WithControllerName(ControllerName))
 	if err != nil {
 		// Hard exit if we can't create this controller
 		logger.WithError(err).Fatal("unable to create resource helper")

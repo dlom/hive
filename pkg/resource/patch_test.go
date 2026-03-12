@@ -17,7 +17,7 @@ import (
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
 )
 
-func TestHelperV2_Patch(t *testing.T) {
+func TestHelper_Patch(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 	ctx := context.Background()
 
@@ -27,7 +27,7 @@ func TestHelperV2_Patch(t *testing.T) {
 		patch     []byte
 		existing  []runtime.Object
 		options   []PatchOption
-		wantState PatchStateV2
+		wantState PatchState
 		wantErr   bool
 		errCheck  func(*testing.T, error)
 	}{
@@ -55,7 +55,7 @@ func TestHelperV2_Patch(t *testing.T) {
 					},
 				},
 			},
-			wantState: PatchedV2,
+			wantState: Patched,
 			wantErr:   false,
 		},
 		{
@@ -82,7 +82,7 @@ func TestHelperV2_Patch(t *testing.T) {
 			options: []PatchOption{
 				WithPatchFieldManager("custom-patch-manager"),
 			},
-			wantState: PatchedV2,
+			wantState: Patched,
 			wantErr:   false,
 		},
 		{
@@ -109,7 +109,7 @@ func TestHelperV2_Patch(t *testing.T) {
 			options: []PatchOption{
 				WithPatchType(types.MergePatchType),
 			},
-			wantState: PatchedV2,
+			wantState: Patched,
 			wantErr:   false,
 		},
 		{
@@ -133,7 +133,7 @@ func TestHelperV2_Patch(t *testing.T) {
 					},
 				},
 			},
-			wantState: PatchedV2,
+			wantState: Patched,
 			wantErr:   false,
 		},
 		{
@@ -174,9 +174,9 @@ func TestHelperV2_Patch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create helper with fake client
 			var c = newFakeClientWithObjects(tt.existing...)
-			helper, err := NewHelperV2(logger,
+			helper, err := NewHelper(logger,
 				WithClient(c),
-				WithControllerNameV2(hivev1.ClustersyncControllerName),
+				WithControllerName(hivev1.ClustersyncControllerName),
 			)
 			require.NoError(t, err)
 
@@ -200,7 +200,7 @@ func TestHelperV2_Patch(t *testing.T) {
 	}
 }
 
-func TestHelperV2_PatchWithObject(t *testing.T) {
+func TestHelper_PatchWithObject(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 	ctx := context.Background()
 
@@ -214,9 +214,9 @@ func TestHelperV2_PatchWithObject(t *testing.T) {
 		},
 	}
 
-	helper, err := NewHelperV2(logger,
+	helper, err := NewHelper(logger,
 		WithClient(newFakeClientWithObjects(existing)),
-		WithControllerNameV2(hivev1.ClustersyncControllerName),
+		WithControllerName(hivev1.ClustersyncControllerName),
 	)
 	require.NoError(t, err)
 
@@ -227,7 +227,7 @@ func TestHelperV2_PatchWithObject(t *testing.T) {
 		resourceName string
 		patch        []byte
 		options      []PatchOption
-		wantState    PatchStateV2
+		wantState    PatchState
 		wantErr      bool
 	}{
 		{
@@ -239,7 +239,7 @@ func TestHelperV2_PatchWithObject(t *testing.T) {
 			namespace:    "default",
 			resourceName: "test-config",
 			patch:        []byte(`{"data":{"newKey":"newValue"}}`),
-			wantState:    PatchedV2,
+			wantState:    Patched,
 			wantErr:      false,
 		},
 		{
@@ -254,7 +254,7 @@ func TestHelperV2_PatchWithObject(t *testing.T) {
 			options: []PatchOption{
 				WithPatchType(types.MergePatchType),
 			},
-			wantState: PatchedV2,
+			wantState: Patched,
 			wantErr:   false,
 		},
 	}
@@ -274,7 +274,7 @@ func TestHelperV2_PatchWithObject(t *testing.T) {
 	}
 }
 
-func TestHelperV2_PatchFieldManager(t *testing.T) {
+func TestHelper_PatchFieldManager(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 	ctx := context.Background()
 
@@ -287,9 +287,9 @@ func TestHelperV2_PatchFieldManager(t *testing.T) {
 
 	t.Run("uses controller name for field manager", func(t *testing.T) {
 		controllerName := hivev1.ClustersyncControllerName
-		helper, err := NewHelperV2(logger,
+		helper, err := NewHelper(logger,
 			WithClient(newFakeClientWithObjects(existing)),
-			WithControllerNameV2(controllerName),
+			WithControllerName(controllerName),
 		)
 		require.NoError(t, err)
 
@@ -308,16 +308,16 @@ func TestHelperV2_PatchFieldManager(t *testing.T) {
 
 		result, err := helper.Patch(ctx, obj, patch)
 		require.NoError(t, err)
-		assert.Equal(t, PatchedV2, result.State)
+		assert.Equal(t, Patched, result.State)
 
 		// Field manager would be "hive-clustersync"
 		// Can't easily verify with fake client, but code path is tested
 	})
 
 	t.Run("allows custom field manager override", func(t *testing.T) {
-		helper, err := NewHelperV2(logger,
+		helper, err := NewHelper(logger,
 			WithClient(newFakeClientWithObjects(existing)),
-			WithControllerNameV2(hivev1.ClustersyncControllerName),
+			WithControllerName(hivev1.ClustersyncControllerName),
 		)
 		require.NoError(t, err)
 
@@ -336,11 +336,11 @@ func TestHelperV2_PatchFieldManager(t *testing.T) {
 
 		result, err := helper.Patch(ctx, obj, patch, WithPatchFieldManager("my-custom-manager"))
 		require.NoError(t, err)
-		assert.Equal(t, PatchedV2, result.State)
+		assert.Equal(t, Patched, result.State)
 	})
 }
 
-func TestHelperV2_PatchTypes(t *testing.T) {
+func TestHelper_PatchTypes(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 	ctx := context.Background()
 
@@ -382,9 +382,9 @@ func TestHelperV2_PatchTypes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			helper, err := NewHelperV2(logger,
+			helper, err := NewHelper(logger,
 				WithClient(newFakeClientWithObjects(existing)),
-				WithControllerNameV2(hivev1.ClustersyncControllerName),
+				WithControllerName(hivev1.ClustersyncControllerName),
 			)
 			require.NoError(t, err)
 
@@ -407,12 +407,12 @@ func TestHelperV2_PatchTypes(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			assert.Equal(t, PatchedV2, result.State)
+			assert.Equal(t, Patched, result.State)
 		})
 	}
 }
 
-func TestHelperV2_PatchContextCancellation(t *testing.T) {
+func TestHelper_PatchContextCancellation(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 
 	existing := &corev1.ConfigMap{
@@ -422,9 +422,9 @@ func TestHelperV2_PatchContextCancellation(t *testing.T) {
 		},
 	}
 
-	helper, err := NewHelperV2(logger,
+	helper, err := NewHelper(logger,
 		WithClient(newFakeClientWithObjects(existing)),
-		WithControllerNameV2(hivev1.ClustersyncControllerName),
+		WithControllerName(hivev1.ClustersyncControllerName),
 	)
 	require.NoError(t, err)
 
@@ -452,7 +452,7 @@ func TestHelperV2_PatchContextCancellation(t *testing.T) {
 	})
 }
 
-func TestHelperV2_PatchConcurrent(t *testing.T) {
+func TestHelper_PatchConcurrent(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 	ctx := context.Background()
 
@@ -463,9 +463,9 @@ func TestHelperV2_PatchConcurrent(t *testing.T) {
 		},
 	}
 
-	helper, err := NewHelperV2(logger,
+	helper, err := NewHelper(logger,
 		WithClient(newFakeClientWithObjects(existing)),
-		WithControllerNameV2(hivev1.ClustersyncControllerName),
+		WithControllerName(hivev1.ClustersyncControllerName),
 	)
 	require.NoError(t, err)
 
@@ -502,13 +502,13 @@ func TestHelperV2_PatchConcurrent(t *testing.T) {
 	}
 }
 
-func TestHelperV2_PatchErrorWrapping(t *testing.T) {
+func TestHelper_PatchErrorWrapping(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 	ctx := context.Background()
 
-	helper, err := NewHelperV2(logger,
+	helper, err := NewHelper(logger,
 		WithClient(newFakeClient()),
-		WithControllerNameV2(hivev1.ClustersyncControllerName),
+		WithControllerName(hivev1.ClustersyncControllerName),
 	)
 	require.NoError(t, err)
 
@@ -542,7 +542,7 @@ func TestHelperV2_PatchErrorWrapping(t *testing.T) {
 	})
 }
 
-func TestHelperV2_PatchMetricsRecording(t *testing.T) {
+func TestHelper_PatchMetricsRecording(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 	ctx := context.Background()
 
@@ -554,9 +554,9 @@ func TestHelperV2_PatchMetricsRecording(t *testing.T) {
 	}
 
 	t.Run("records metrics on success", func(t *testing.T) {
-		helper, err := NewHelperV2(logger,
+		helper, err := NewHelper(logger,
 			WithClient(newFakeClientWithObjects(existing)),
-			WithControllerNameV2(hivev1.ClustersyncControllerName),
+			WithControllerName(hivev1.ClustersyncControllerName),
 		)
 		require.NoError(t, err)
 
@@ -575,16 +575,16 @@ func TestHelperV2_PatchMetricsRecording(t *testing.T) {
 
 		result, err := helper.Patch(ctx, obj, patch)
 		require.NoError(t, err)
-		assert.Equal(t, PatchedV2, result.State)
+		assert.Equal(t, Patched, result.State)
 
 		// Metrics recording happens internally
 		// Integration tests would verify metrics collection
 	})
 
 	t.Run("records metrics on failure", func(t *testing.T) {
-		helper, err := NewHelperV2(logger,
+		helper, err := NewHelper(logger,
 			WithClient(newFakeClient()),
-			WithControllerNameV2(hivev1.ClustersyncControllerName),
+			WithControllerName(hivev1.ClustersyncControllerName),
 		)
 		require.NoError(t, err)
 

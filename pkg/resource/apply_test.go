@@ -22,9 +22,9 @@ import (
 // To run integration tests for Server-Side Apply:
 // 1. Use envtest (sigs.k8s.io/controller-runtime/pkg/envtest) which provides a real API server
 // 2. Or test against a real Kubernetes cluster
-// 3. Or use the fakeHelperV2 from fake.go for unit testing apply behavior simulation
+// 3. Or use the fakeHelper from fake.go for unit testing apply behavior simulation
 
-func TestHelperV2_Apply(t *testing.T) {
+func TestHelper_Apply(t *testing.T) {
 	t.Skip("controller-runtime fake client doesn't support Server-Side Apply - use envtest for integration testing")
 
 	logger := log.NewEntry(log.StandardLogger())
@@ -35,7 +35,7 @@ func TestHelperV2_Apply(t *testing.T) {
 		input     interface{}
 		existing  []runtime.Object
 		options   []ApplyOption
-		wantState ApplyStateV2
+		wantState ApplyState
 		wantErr   bool
 		errCheck  func(*testing.T, error)
 	}{
@@ -51,7 +51,7 @@ data:
   key: value
 `),
 			existing:  nil,
-			wantState: CreatedV2,
+			wantState: Created,
 			wantErr:   false,
 		},
 		{
@@ -68,7 +68,7 @@ data:
   }
 }`),
 			existing:  nil,
-			wantState: CreatedV2,
+			wantState: Created,
 			wantErr:   false,
 		},
 		{
@@ -93,7 +93,7 @@ data:
 					},
 				},
 			},
-			wantState: ConfiguredV2,
+			wantState: Configured,
 			wantErr:   false,
 		},
 		{
@@ -110,7 +110,7 @@ data:
 			options: []ApplyOption{
 				WithFieldManager("custom-manager"),
 			},
-			wantState: CreatedV2,
+			wantState: Created,
 			wantErr:   false,
 		},
 		{
@@ -127,7 +127,7 @@ data:
 			options: []ApplyOption{
 				WithForce(),
 			},
-			wantState: CreatedV2,
+			wantState: Created,
 			wantErr:   false,
 		},
 		{
@@ -144,7 +144,7 @@ data:
 			options: []ApplyOption{
 				WithDryRun(),
 			},
-			wantState: CreatedV2,
+			wantState: Created,
 			wantErr:   false,
 		},
 		{
@@ -162,7 +162,7 @@ data:
 					"key": "runtime-value",
 				},
 			},
-			wantState: CreatedV2,
+			wantState: Created,
 			wantErr:   false,
 		},
 		{
@@ -180,7 +180,7 @@ data:
 					},
 				},
 			},
-			wantState: CreatedV2,
+			wantState: Created,
 			wantErr:   false,
 		},
 		{
@@ -231,9 +231,9 @@ metadata:
 		t.Run(tt.name, func(t *testing.T) {
 			// Create helper with fake client
 			var c = newFakeClientWithObjects(tt.existing...)
-			helper, err := NewHelperV2(logger,
+			helper, err := NewHelper(logger,
 				WithClient(c),
-				WithControllerNameV2(hivev1.ClustersyncControllerName),
+				WithControllerName(hivev1.ClustersyncControllerName),
 			)
 			require.NoError(t, err)
 
@@ -258,12 +258,12 @@ metadata:
 	}
 }
 
-func TestHelperV2_ApplyContextCancellation(t *testing.T) {
+func TestHelper_ApplyContextCancellation(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 
-	helper, err := NewHelperV2(logger,
+	helper, err := NewHelper(logger,
 		WithClient(newFakeClient()),
-		WithControllerNameV2(hivev1.ClustersyncControllerName),
+		WithControllerName(hivev1.ClustersyncControllerName),
 	)
 	require.NoError(t, err)
 
@@ -287,7 +287,7 @@ metadata:
 	})
 }
 
-func TestHelperV2_ApplyFieldManager(t *testing.T) {
+func TestHelper_ApplyFieldManager(t *testing.T) {
 	t.Skip("controller-runtime fake client doesn't support Server-Side Apply - use envtest for integration testing")
 
 	logger := log.NewEntry(log.StandardLogger())
@@ -295,9 +295,9 @@ func TestHelperV2_ApplyFieldManager(t *testing.T) {
 
 	t.Run("uses controller name for field manager", func(t *testing.T) {
 		controllerName := hivev1.ClustersyncControllerName
-		helper, err := NewHelperV2(logger,
+		helper, err := NewHelper(logger,
 			WithClient(newFakeClient()),
-			WithControllerNameV2(controllerName),
+			WithControllerName(controllerName),
 		)
 		require.NoError(t, err)
 
@@ -313,16 +313,16 @@ data:
 
 		result, err := helper.Apply(ctx, yamlData)
 		require.NoError(t, err)
-		assert.Equal(t, CreatedV2, result.State)
+		assert.Equal(t, Created, result.State)
 
 		// Field manager would be "hive-clustersync"
 		// We can't easily verify this with fake client, but the code path is tested
 	})
 
 	t.Run("allows custom field manager override", func(t *testing.T) {
-		helper, err := NewHelperV2(logger,
+		helper, err := NewHelper(logger,
 			WithClient(newFakeClient()),
-			WithControllerNameV2(hivev1.ClustersyncControllerName),
+			WithControllerName(hivev1.ClustersyncControllerName),
 		)
 		require.NoError(t, err)
 
@@ -338,22 +338,22 @@ data:
 
 		result, err := helper.Apply(ctx, yamlData, WithFieldManager("my-custom-manager"))
 		require.NoError(t, err)
-		assert.Equal(t, CreatedV2, result.State)
+		assert.Equal(t, Created, result.State)
 	})
 }
 
-func TestHelperV2_ApplyToUnstructured(t *testing.T) {
+func TestHelper_ApplyToUnstructured(t *testing.T) {
 	t.Skip("controller-runtime fake client doesn't support Server-Side Apply - use envtest for integration testing")
 
 	logger := log.NewEntry(log.StandardLogger())
 
-	helper, err := NewHelperV2(logger,
+	helper, err := NewHelper(logger,
 		WithClient(newFakeClient()),
-		WithControllerNameV2(hivev1.ClustersyncControllerName),
+		WithControllerName(hivev1.ClustersyncControllerName),
 	)
 	require.NoError(t, err)
 
-	h := helper.(*helperV2)
+	h := helper.(*helperImpl)
 
 	tests := []struct {
 		name    string
@@ -461,15 +461,15 @@ metadata:
 	}
 }
 
-func TestHelperV2_ApplyConcurrent(t *testing.T) {
+func TestHelper_ApplyConcurrent(t *testing.T) {
 	t.Skip("controller-runtime fake client doesn't support Server-Side Apply - use envtest for integration testing")
 
 	logger := log.NewEntry(log.StandardLogger())
 	ctx := context.Background()
 
-	helper, err := NewHelperV2(logger,
+	helper, err := NewHelper(logger,
 		WithClient(newFakeClient()),
-		WithControllerNameV2(hivev1.ClustersyncControllerName),
+		WithControllerName(hivev1.ClustersyncControllerName),
 	)
 	require.NoError(t, err)
 
@@ -503,16 +503,16 @@ data:
 	}
 }
 
-func TestHelperV2_ApplyStateDetection(t *testing.T) {
+func TestHelper_ApplyStateDetection(t *testing.T) {
 	t.Skip("controller-runtime fake client doesn't support Server-Side Apply - use envtest for integration testing")
 
 	logger := log.NewEntry(log.StandardLogger())
 	ctx := context.Background()
 
-	t.Run("detects CreatedV2 state for new resource", func(t *testing.T) {
-		helper, err := NewHelperV2(logger,
+	t.Run("detects Created state for new resource", func(t *testing.T) {
+		helper, err := NewHelper(logger,
 			WithClient(newFakeClient()),
-			WithControllerNameV2(hivev1.ClustersyncControllerName),
+			WithControllerName(hivev1.ClustersyncControllerName),
 		)
 		require.NoError(t, err)
 
@@ -528,10 +528,10 @@ data:
 
 		result, err := helper.Apply(ctx, yamlData)
 		require.NoError(t, err)
-		assert.Equal(t, CreatedV2, result.State)
+		assert.Equal(t, Created, result.State)
 	})
 
-	t.Run("detects ConfiguredV2 state for existing resource", func(t *testing.T) {
+	t.Run("detects Configured state for existing resource", func(t *testing.T) {
 		existing := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "existing-resource",
@@ -542,9 +542,9 @@ data:
 			},
 		}
 
-		helper, err := NewHelperV2(logger,
+		helper, err := NewHelper(logger,
 			WithClient(newFakeClientWithObjects(existing)),
-			WithControllerNameV2(hivev1.ClustersyncControllerName),
+			WithControllerName(hivev1.ClustersyncControllerName),
 		)
 		require.NoError(t, err)
 
@@ -560,19 +560,19 @@ data:
 
 		result, err := helper.Apply(ctx, yamlData)
 		require.NoError(t, err)
-		assert.Equal(t, ConfiguredV2, result.State)
+		assert.Equal(t, Configured, result.State)
 	})
 }
 
-func TestHelperV2_ApplyErrorWrapping(t *testing.T) {
+func TestHelper_ApplyErrorWrapping(t *testing.T) {
 	t.Skip("controller-runtime fake client doesn't support Server-Side Apply - use envtest for integration testing")
 
 	logger := log.NewEntry(log.StandardLogger())
 	ctx := context.Background()
 
-	helper, err := NewHelperV2(logger,
+	helper, err := NewHelper(logger,
 		WithClient(newFakeClient()),
-		WithControllerNameV2(hivev1.ClustersyncControllerName),
+		WithControllerName(hivev1.ClustersyncControllerName),
 	)
 	require.NoError(t, err)
 
@@ -604,16 +604,16 @@ data:
 	})
 }
 
-func TestHelperV2_ApplyMetricsRecording(t *testing.T) {
+func TestHelper_ApplyMetricsRecording(t *testing.T) {
 	t.Skip("controller-runtime fake client doesn't support Server-Side Apply - use envtest for integration testing")
 
 	logger := log.NewEntry(log.StandardLogger())
 	ctx := context.Background()
 
 	t.Run("records metrics on success", func(t *testing.T) {
-		helper, err := NewHelperV2(logger,
+		helper, err := NewHelper(logger,
 			WithClient(newFakeClient()),
-			WithControllerNameV2(hivev1.ClustersyncControllerName),
+			WithControllerName(hivev1.ClustersyncControllerName),
 		)
 		require.NoError(t, err)
 
@@ -629,7 +629,7 @@ data:
 
 		result, err := helper.Apply(ctx, yamlData)
 		require.NoError(t, err)
-		assert.Equal(t, CreatedV2, result.State)
+		assert.Equal(t, Created, result.State)
 
 		// Metrics recording is called internally
 		// We can't easily verify Prometheus metrics in unit tests
@@ -637,9 +637,9 @@ data:
 	})
 
 	t.Run("records metrics on failure", func(t *testing.T) {
-		helper, err := NewHelperV2(logger,
+		helper, err := NewHelper(logger,
 			WithClient(newFakeClient()),
-			WithControllerNameV2(hivev1.ClustersyncControllerName),
+			WithControllerName(hivev1.ClustersyncControllerName),
 		)
 		require.NoError(t, err)
 

@@ -16,7 +16,7 @@ import (
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
 )
 
-func TestHelperV2_Delete(t *testing.T) {
+func TestHelper_Delete(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 	ctx := context.Background()
 
@@ -27,7 +27,7 @@ func TestHelperV2_Delete(t *testing.T) {
 		objName   string
 		existing  []runtime.Object
 		options   []DeleteOption
-		wantState DeleteStateV2
+		wantState DeleteState
 		wantErr   bool
 	}{
 		{
@@ -46,11 +46,11 @@ func TestHelperV2_Delete(t *testing.T) {
 					},
 				},
 			},
-			wantState: DeletedV2,
+			wantState: Deleted,
 			wantErr:   false,
 		},
 		{
-			name: "delete non-existent resource returns NotFoundV2",
+			name: "delete non-existent resource returns NotFound",
 			gvk: schema.GroupVersionKind{
 				Version: "v1",
 				Kind:    "ConfigMap",
@@ -58,7 +58,7 @@ func TestHelperV2_Delete(t *testing.T) {
 			namespace: "default",
 			objName:   "non-existent",
 			existing:  nil,
-			wantState: NotFoundV2,
+			wantState: NotFound,
 			wantErr:   false,
 		},
 		{
@@ -80,7 +80,7 @@ func TestHelperV2_Delete(t *testing.T) {
 			options: []DeleteOption{
 				WithGracePeriod(30),
 			},
-			wantState: DeletedV2,
+			wantState: Deleted,
 			wantErr:   false,
 		},
 		{
@@ -102,7 +102,7 @@ func TestHelperV2_Delete(t *testing.T) {
 			options: []DeleteOption{
 				WithPropagationPolicy(metav1.DeletePropagationForeground),
 			},
-			wantState: DeletedV2,
+			wantState: Deleted,
 			wantErr:   false,
 		},
 	}
@@ -111,9 +111,9 @@ func TestHelperV2_Delete(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create helper with fake client
 			var c = newFakeClientWithObjects(tt.existing...)
-			helper, err := NewHelperV2(logger,
+			helper, err := NewHelper(logger,
 				WithClient(c),
-				WithControllerNameV2(hivev1.ClustersyncControllerName),
+				WithControllerName(hivev1.ClustersyncControllerName),
 			)
 			require.NoError(t, err)
 
@@ -133,7 +133,7 @@ func TestHelperV2_Delete(t *testing.T) {
 	}
 }
 
-func TestHelperV2_DeleteDeletionInProgress(t *testing.T) {
+func TestHelper_DeleteDeletionInProgress(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 	ctx := context.Background()
 
@@ -148,10 +148,10 @@ func TestHelperV2_DeleteDeletionInProgress(t *testing.T) {
 		},
 	}
 
-	t.Run("returns DeletionInProgressV2 for resource with finalizer", func(t *testing.T) {
-		helper, err := NewHelperV2(logger,
+	t.Run("returns DeletionInProgress for resource with finalizer", func(t *testing.T) {
+		helper, err := NewHelper(logger,
 			WithClient(newFakeClientWithObjects(resourceWithFinalizer)),
-			WithControllerNameV2(hivev1.ClustersyncControllerName),
+			WithControllerName(hivev1.ClustersyncControllerName),
 		)
 		require.NoError(t, err)
 
@@ -162,13 +162,13 @@ func TestHelperV2_DeleteDeletionInProgress(t *testing.T) {
 
 		result, err := helper.Delete(ctx, gvk, "default", "finalizer-test")
 		require.NoError(t, err)
-		assert.Equal(t, DeletionInProgressV2, result.State)
+		assert.Equal(t, DeletionInProgress, result.State)
 		assert.NotNil(t, result.DeletionTimestamp)
 		assert.NotNil(t, result.Object)
 	})
 }
 
-func TestHelperV2_DeleteWithWait(t *testing.T) {
+func TestHelper_DeleteWithWait(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 
 	t.Run("wait for deletion to complete", func(t *testing.T) {
@@ -180,9 +180,9 @@ func TestHelperV2_DeleteWithWait(t *testing.T) {
 			},
 		}
 
-		helper, err := NewHelperV2(logger,
+		helper, err := NewHelper(logger,
 			WithClient(newFakeClientWithObjects(resource)),
-			WithControllerNameV2(hivev1.ClustersyncControllerName),
+			WithControllerName(hivev1.ClustersyncControllerName),
 		)
 		require.NoError(t, err)
 
@@ -203,7 +203,7 @@ func TestHelperV2_DeleteWithWait(t *testing.T) {
 			// Context timeout is acceptable
 			assert.Contains(t, err.Error(), "context")
 		} else {
-			assert.Equal(t, DeletedV2, result.State)
+			assert.Equal(t, Deleted, result.State)
 		}
 	})
 
@@ -219,9 +219,9 @@ func TestHelperV2_DeleteWithWait(t *testing.T) {
 			},
 		}
 
-		helper, err := NewHelperV2(logger,
+		helper, err := NewHelper(logger,
 			WithClient(newFakeClientWithObjects(resource)),
-			WithControllerNameV2(hivev1.ClustersyncControllerName),
+			WithControllerName(hivev1.ClustersyncControllerName),
 		)
 		require.NoError(t, err)
 
@@ -237,18 +237,18 @@ func TestHelperV2_DeleteWithWait(t *testing.T) {
 		// Wait should return error due to context timeout
 		result, err := helper.Delete(ctx, gvk, "default", "timeout-test", WithWait())
 
-		// Should get context error or DeletionInProgressV2
+		// Should get context error or DeletionInProgress
 		if err != nil {
 			assert.Contains(t, err.Error(), "context")
-			assert.Equal(t, DeletionInProgressV2, result.State)
+			assert.Equal(t, DeletionInProgress, result.State)
 		} else {
 			// Fake client might delete immediately
-			assert.Equal(t, DeletedV2, result.State)
+			assert.Equal(t, Deleted, result.State)
 		}
 	})
 }
 
-func TestHelperV2_DeleteIdempotent(t *testing.T) {
+func TestHelper_DeleteIdempotent(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 	ctx := context.Background()
 
@@ -259,9 +259,9 @@ func TestHelperV2_DeleteIdempotent(t *testing.T) {
 		},
 	}
 
-	helper, err := NewHelperV2(logger,
+	helper, err := NewHelper(logger,
 		WithClient(newFakeClientWithObjects(resource)),
-		WithControllerNameV2(hivev1.ClustersyncControllerName),
+		WithControllerName(hivev1.ClustersyncControllerName),
 	)
 	require.NoError(t, err)
 
@@ -273,17 +273,17 @@ func TestHelperV2_DeleteIdempotent(t *testing.T) {
 	t.Run("first delete succeeds", func(t *testing.T) {
 		result, err := helper.Delete(ctx, gvk, "default", "idempotent-test")
 		require.NoError(t, err)
-		assert.Equal(t, DeletedV2, result.State)
+		assert.Equal(t, Deleted, result.State)
 	})
 
-	t.Run("second delete returns NotFoundV2", func(t *testing.T) {
+	t.Run("second delete returns NotFound", func(t *testing.T) {
 		result, err := helper.Delete(ctx, gvk, "default", "idempotent-test")
 		require.NoError(t, err)
-		assert.Equal(t, NotFoundV2, result.State)
+		assert.Equal(t, NotFound, result.State)
 	})
 }
 
-func TestHelperV2_DeleteContextCancellation(t *testing.T) {
+func TestHelper_DeleteContextCancellation(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 
 	resource := &corev1.ConfigMap{
@@ -293,9 +293,9 @@ func TestHelperV2_DeleteContextCancellation(t *testing.T) {
 		},
 	}
 
-	helper, err := NewHelperV2(logger,
+	helper, err := NewHelper(logger,
 		WithClient(newFakeClientWithObjects(resource)),
-		WithControllerNameV2(hivev1.ClustersyncControllerName),
+		WithControllerName(hivev1.ClustersyncControllerName),
 	)
 	require.NoError(t, err)
 
@@ -316,7 +316,7 @@ func TestHelperV2_DeleteContextCancellation(t *testing.T) {
 	})
 }
 
-func TestHelperV2_DeleteConcurrent(t *testing.T) {
+func TestHelper_DeleteConcurrent(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 	ctx := context.Background()
 
@@ -330,9 +330,9 @@ func TestHelperV2_DeleteConcurrent(t *testing.T) {
 		},
 	}
 
-	helper, err := NewHelperV2(logger,
+	helper, err := NewHelper(logger,
 		WithClient(newFakeClientWithObjects(resources...)),
-		WithControllerNameV2(hivev1.ClustersyncControllerName),
+		WithControllerName(hivev1.ClustersyncControllerName),
 	)
 	require.NoError(t, err)
 
@@ -361,11 +361,11 @@ func TestHelperV2_DeleteConcurrent(t *testing.T) {
 	}
 }
 
-func TestHelperV2_DeleteStateSemanticsVsV1(t *testing.T) {
+func TestHelper_DeleteStateSemanticsVsV1(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 	ctx := context.Background()
 
-	t.Run("v2 returns clear DeletionInProgressV2 state", func(t *testing.T) {
+	t.Run("v2 returns clear DeletionInProgress state", func(t *testing.T) {
 		// This tests the fix for the v1 bug where deletion state was ambiguous
 
 		deletionTimestamp := metav1.Now()
@@ -378,9 +378,9 @@ func TestHelperV2_DeleteStateSemanticsVsV1(t *testing.T) {
 			},
 		}
 
-		helper, err := NewHelperV2(logger,
+		helper, err := NewHelper(logger,
 			WithClient(newFakeClientWithObjects(resourceWithFinalizer)),
-			WithControllerNameV2(hivev1.ClustersyncControllerName),
+			WithControllerName(hivev1.ClustersyncControllerName),
 		)
 		require.NoError(t, err)
 
@@ -392,16 +392,16 @@ func TestHelperV2_DeleteStateSemanticsVsV1(t *testing.T) {
 		result, err := helper.Delete(ctx, gvk, "default", "v2-semantics-test")
 		require.NoError(t, err)
 
-		// v2 explicitly returns DeletionInProgressV2 (not ambiguous false)
-		assert.Equal(t, DeletionInProgressV2, result.State, "v2 should return explicit DeletionInProgressV2 state")
+		// v2 explicitly returns DeletionInProgress (not ambiguous false)
+		assert.Equal(t, DeletionInProgress, result.State, "v2 should return explicit DeletionInProgress state")
 		assert.NotNil(t, result.DeletionTimestamp, "should include deletion timestamp")
 		assert.NotNil(t, result.Object, "should include object for inspection")
 	})
 
-	t.Run("v2 distinguishes NotFoundV2 from DeletedV2", func(t *testing.T) {
-		helper, err := NewHelperV2(logger,
+	t.Run("v2 distinguishes NotFound from Deleted", func(t *testing.T) {
+		helper, err := NewHelper(logger,
 			WithClient(newFakeClient()),
-			WithControllerNameV2(hivev1.ClustersyncControllerName),
+			WithControllerName(hivev1.ClustersyncControllerName),
 		)
 		require.NoError(t, err)
 
@@ -414,18 +414,18 @@ func TestHelperV2_DeleteStateSemanticsVsV1(t *testing.T) {
 		result, err := helper.Delete(ctx, gvk, "default", "never-existed")
 		require.NoError(t, err)
 
-		// v2 explicitly returns NotFoundV2 (not DeletedV2)
-		assert.Equal(t, NotFoundV2, result.State, "v2 should distinguish NotFoundV2 from DeletedV2")
+		// v2 explicitly returns NotFound (not Deleted)
+		assert.Equal(t, NotFound, result.State, "v2 should distinguish NotFound from Deleted")
 	})
 }
 
-func TestHelperV2_DeleteErrorWrapping(t *testing.T) {
+func TestHelper_DeleteErrorWrapping(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 	ctx := context.Background()
 
-	helper, err := NewHelperV2(logger,
+	helper, err := NewHelper(logger,
 		WithClient(newFakeClient()),
-		WithControllerNameV2(hivev1.ClustersyncControllerName),
+		WithControllerName(hivev1.ClustersyncControllerName),
 	)
 	require.NoError(t, err)
 
@@ -435,16 +435,16 @@ func TestHelperV2_DeleteErrorWrapping(t *testing.T) {
 			Kind:    "ConfigMap",
 		}
 
-		// This should succeed (NotFoundV2 state)
+		// This should succeed (NotFound state)
 		result, err := helper.Delete(ctx, gvk, "default", "test")
 		require.NoError(t, err)
-		assert.Equal(t, NotFoundV2, result.State)
+		assert.Equal(t, NotFound, result.State)
 
 		// Error wrapping is tested in other error paths
 	})
 }
 
-func TestHelperV2_DeleteMetricsRecording(t *testing.T) {
+func TestHelper_DeleteMetricsRecording(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 	ctx := context.Background()
 
@@ -456,9 +456,9 @@ func TestHelperV2_DeleteMetricsRecording(t *testing.T) {
 			},
 		}
 
-		helper, err := NewHelperV2(logger,
+		helper, err := NewHelper(logger,
 			WithClient(newFakeClientWithObjects(resource)),
-			WithControllerNameV2(hivev1.ClustersyncControllerName),
+			WithControllerName(hivev1.ClustersyncControllerName),
 		)
 		require.NoError(t, err)
 
@@ -469,16 +469,16 @@ func TestHelperV2_DeleteMetricsRecording(t *testing.T) {
 
 		result, err := helper.Delete(ctx, gvk, "default", "metrics-test")
 		require.NoError(t, err)
-		assert.Equal(t, DeletedV2, result.State)
+		assert.Equal(t, Deleted, result.State)
 
 		// Metrics recording happens internally
 		// Integration tests would verify metrics collection
 	})
 
-	t.Run("records metrics for NotFoundV2", func(t *testing.T) {
-		helper, err := NewHelperV2(logger,
+	t.Run("records metrics for NotFound", func(t *testing.T) {
+		helper, err := NewHelper(logger,
 			WithClient(newFakeClient()),
-			WithControllerNameV2(hivev1.ClustersyncControllerName),
+			WithControllerName(hivev1.ClustersyncControllerName),
 		)
 		require.NoError(t, err)
 
@@ -489,12 +489,12 @@ func TestHelperV2_DeleteMetricsRecording(t *testing.T) {
 
 		result, err := helper.Delete(ctx, gvk, "default", "not-found")
 		require.NoError(t, err)
-		assert.Equal(t, NotFoundV2, result.State)
+		assert.Equal(t, NotFound, result.State)
 
-		// Metrics should be recorded for NotFoundV2 too
+		// Metrics should be recorded for NotFound too
 	})
 
-	t.Run("records metrics for DeletionInProgressV2", func(t *testing.T) {
+	t.Run("records metrics for DeletionInProgress", func(t *testing.T) {
 		deletionTimestamp := metav1.Now()
 		resource := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
@@ -505,9 +505,9 @@ func TestHelperV2_DeleteMetricsRecording(t *testing.T) {
 			},
 		}
 
-		helper, err := NewHelperV2(logger,
+		helper, err := NewHelper(logger,
 			WithClient(newFakeClientWithObjects(resource)),
-			WithControllerNameV2(hivev1.ClustersyncControllerName),
+			WithControllerName(hivev1.ClustersyncControllerName),
 		)
 		require.NoError(t, err)
 
@@ -518,13 +518,13 @@ func TestHelperV2_DeleteMetricsRecording(t *testing.T) {
 
 		result, err := helper.Delete(ctx, gvk, "default", "deletion-in-progress")
 		require.NoError(t, err)
-		assert.Equal(t, DeletionInProgressV2, result.State)
+		assert.Equal(t, DeletionInProgress, result.State)
 
 		// Metrics should be recorded for all states
 	})
 }
 
-func TestHelperV2_DeleteWaitForDeletion(t *testing.T) {
+func TestHelper_DeleteWaitForDeletion(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 
 	t.Run("waitForDeletion polls until deleted", func(t *testing.T) {
@@ -536,9 +536,9 @@ func TestHelperV2_DeleteWaitForDeletion(t *testing.T) {
 			},
 		}
 
-		helper, err := NewHelperV2(logger,
+		helper, err := NewHelper(logger,
 			WithClient(newFakeClientWithObjects(resource)),
-			WithControllerNameV2(hivev1.ClustersyncControllerName),
+			WithControllerName(hivev1.ClustersyncControllerName),
 		)
 		require.NoError(t, err)
 
@@ -556,7 +556,7 @@ func TestHelperV2_DeleteWaitForDeletion(t *testing.T) {
 
 		// Should succeed or timeout (both acceptable in test)
 		if err == nil {
-			assert.Equal(t, DeletedV2, result.State)
+			assert.Equal(t, Deleted, result.State)
 		} else {
 			// Timeout is acceptable
 			assert.Contains(t, err.Error(), "context")

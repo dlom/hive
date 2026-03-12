@@ -368,16 +368,16 @@ func (o *Options) generateAzureCredentialsSecret() (*corev1.Secret, error) {
 	}, nil
 }
 
-func (o *Options) getResourceHelper() (resource.HelperV2, error) {
+func (o *Options) getResourceHelper() (resource.Helper, error) {
 	cfg, err := config.GetConfig()
 	if err != nil {
 		log.WithError(err).Error("Cannot get client config")
 		return nil, err
 	}
-	return resource.NewHelperV2(
+	return resource.NewHelper(
 		log.WithField("command", "adm manage-dns enable"),
-		resource.WithRESTConfigV2(cfg),
-		resource.WithControllerNameV2("util-managedns-enable"))
+		resource.WithRESTConfig(cfg),
+		resource.WithControllerName("util-managedns-enable"))
 }
 
 func (o *Options) setupLocalClients() error {

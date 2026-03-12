@@ -13,9 +13,9 @@ import (
 	"github.com/openshift/hive/internal/clientutil"
 )
 
-//go:generate mockgen -source=./helper_v2.go -destination=./mock/helper_generated.go -package=mock
+//go:generate mockgen -source=./helper.go -destination=./mock/helper_generated.go -package=mock
 
-// HelperV2 provides context-aware resource operations using Server-Side Apply.
+// Helper provides context-aware resource operations using Server-Side Apply.
 // It replaces the kubectl-dependent Helper interface with native Kubernetes client APIs.
 //
 // Key improvements over v1:
@@ -26,7 +26,7 @@ import (
 //   - Fixed deletion semantics (clear DeletionInProgress state)
 //   - No os.Args global mutation
 //   - Immutable field manager via clientutil
-type HelperV2 interface {
+type Helper interface {
 	// Apply applies the given resource using Server-Side Apply.
 	// Accepts both []byte (YAML/JSON) and runtime.Object.
 	// Context is used for timeout and cancellation.
@@ -35,91 +35,91 @@ type HelperV2 interface {
 	//   - Created: Resource was created
 	//   - Configured: Resource was updated
 	//   - Unchanged: Resource already in desired state
-	Apply(ctx context.Context, obj interface{}, opts ...ApplyOption) (ApplyResultV2, error)
+	Apply(ctx context.Context, obj interface{}, opts ...ApplyOption) (ApplyResult, error)
 
 	// Patch patches the given resource using the specified patch type.
 	// Accepts both []byte patch data and runtime.Object.
 	//
 	// Returns:
-	//   - PatchedV2: Resource was patched
-	//   - PatchUnchangedV2: Patch resulted in no changes
-	Patch(ctx context.Context, obj interface{}, patch []byte, opts ...PatchOption) (PatchResultV2, error)
+	//   - Patched: Resource was patched
+	//   - PatchUnchanged: Patch resulted in no changes
+	Patch(ctx context.Context, obj interface{}, patch []byte, opts ...PatchOption) (PatchResult, error)
 
 	// PatchWithObject patches a resource by GVK, namespace, and name.
 	// This is useful when you have the resource identity but not the full object.
-	PatchWithObject(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, patch []byte, opts ...PatchOption) (PatchResultV2, error)
+	PatchWithObject(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, patch []byte, opts ...PatchOption) (PatchResult, error)
 
 	// Delete deletes the specified resource.
 	// Returns clear deletion states:
-	//   - DeletedV2: Successfully deleted or already gone
-	//   - NotFoundV2: Resource never existed
-	//   - DeletionInProgressV2: Has deletionTimestamp but still exists (finalizers)
-	Delete(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, opts ...DeleteOption) (DeleteResultV2, error)
+	//   - Deleted: Successfully deleted or already gone
+	//   - NotFound: Resource never existed
+	//   - DeletionInProgress: Has deletionTimestamp but still exists (finalizers)
+	Delete(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, opts ...DeleteOption) (DeleteResult, error)
 }
 
-// helperV2Config holds the configuration for a v2 helper.
-type helperV2Config struct {
+// helperConfig holds the configuration for a v2 helper.
+type helperConfig struct {
 	client         client.Client
 	restConfig     *rest.Config
 	logger         log.FieldLogger
 	controllerName hivev1.ControllerName
 }
 
-// HelperV2Option is a functional option for configuring a HelperV2.
-type HelperV2Option func(*helperV2Config)
+// HelperOption is a functional option for configuring a Helper.
+type HelperOption func(*helperConfig)
 
 // WithClient sets the controller-runtime client to use for operations.
 // This is the preferred way to configure the helper.
-func WithClient(c client.Client) HelperV2Option {
-	return func(cfg *helperV2Config) {
+func WithClient(c client.Client) HelperOption {
+	return func(cfg *helperConfig) {
 		cfg.client = c
 	}
 }
 
-// WithRESTConfigV2 sets the REST config to create a client.
+// WithRESTConfig sets the REST config to create a client.
 // Use this when you have a REST config but not a client.
-func WithRESTConfigV2(restCfg *rest.Config) HelperV2Option {
-	return func(cfg *helperV2Config) {
+func WithRESTConfig(restCfg *rest.Config) HelperOption {
+	return func(cfg *helperConfig) {
 		cfg.restConfig = restCfg
 	}
 }
 
-// WithControllerNameV2 sets the controller name for field manager and metrics.
+// WithControllerName sets the controller name for field manager and metrics.
 // This is required for proper field ownership tracking.
-func WithControllerNameV2(name hivev1.ControllerName) HelperV2Option {
-	return func(cfg *helperV2Config) {
+func WithControllerName(name hivev1.ControllerName) HelperOption {
+	return func(cfg *helperConfig) {
 		cfg.controllerName = name
 	}
 }
 
-// helperV2 implements HelperV2 using native Kubernetes client APIs.
-type helperV2 struct {
+// helper implements Helper using native Kubernetes client APIs.
+type helperImpl struct {
 	client         client.Client
 	logger         log.FieldLogger
 	controllerName hivev1.ControllerName
 }
 
-// NewHelperV2 creates a new v2 helper with Server-Side Apply support.
+// NewHelper creates a new v2 helper with Server-Side Apply support.
 //
 // Example usage:
 //
-//	helper, err := resource.NewHelperV2(
+//	helper, err := resource.NewHelper(
 //	    logger,
 //	    resource.WithClient(remoteClient),
-//	    resource.WithControllerNameV2(hivev1.ClustersyncControllerName),
+//	    resource.WithControllerName(hivev1.ClustersyncControllerName),
 //	)
 //
 //	result, err := helper.Apply(ctx, yamlBytes)
 //	switch result.State {
-//	case resource.CreatedV2:
+//	case resource.Created:
 //	    logger.Info("created resource")
-//	case resource.ConfiguredV2:
+//	case resource.Configured:
 //	    logger.Info("updated resource")
-//	case resource.UnchangedV2:
+//	case resource.Unchanged:
 //	    logger.Info("no changes needed")
 //	}
-func NewHelperV2(logger log.FieldLogger, opts ...HelperV2Option) (HelperV2, error) {
-	cfg := &helperV2Config{
+func NewHelper(logger log.FieldLogger, opts ...HelperOption) (Helper, error) {
+	cfg := &helperConfig{
 		logger: logger,
 	}
 
@@ -152,7 +152,7 @@ func NewHelperV2(logger log.FieldLogger, opts ...HelperV2Option) (HelperV2, erro
 		)
 	}
 
-	return &helperV2{
+	return &helperImpl{
 		client:         cfg.client,
 		logger:         logger,
 		controllerName: cfg.controllerName,
