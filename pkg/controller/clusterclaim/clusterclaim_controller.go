@@ -402,25 +402,47 @@ func (r *ReconcileClusterClaim) cleanupResources(claim *hivev1.ClusterClaim, log
 	}
 
 	// Delete RoleBinding
-	rolebindingGone, err = resource.DeleteAnyExistingObject(
-		r,
-		client.ObjectKey{Namespace: clusterName, Name: hiveClaimOwnerRoleBindingName},
-		&rbacv1.RoleBinding{},
-		logger,
-	)
-	if err != nil {
-		return false, err
+	roleBinding := &rbacv1.RoleBinding{}
+	rolebindingKey := client.ObjectKey{Namespace: clusterName, Name: hiveClaimOwnerRoleBindingName}
+	switch err := r.Get(context.Background(), rolebindingKey, roleBinding); {
+	case apierrors.IsNotFound(err):
+		logger.WithField("object", rolebindingKey).Debug("rolebinding does not exist")
+		rolebindingGone = true
+	case err != nil:
+		logger.WithError(err).Error("error getting rolebinding")
+		return false, errors.Wrap(err, "error getting rolebinding")
+	case roleBinding.GetDeletionTimestamp() != nil:
+		logger.WithField("object", rolebindingKey).Debug("rolebinding has already been deleted")
+		rolebindingGone = false
+	default:
+		logger.WithField("object", rolebindingKey).Info("deleting existing rolebinding")
+		if err := r.Delete(context.Background(), roleBinding); err != nil {
+			logger.WithError(err).Error("error deleting rolebinding")
+			return false, errors.Wrap(err, "error deleting rolebinding")
+		}
+		rolebindingGone = false
 	}
 
 	// Delete Role
-	roleGone, err = resource.DeleteAnyExistingObject(
-		r,
-		client.ObjectKey{Namespace: clusterName, Name: hiveClaimOwnerRoleName},
-		&rbacv1.Role{},
-		logger,
-	)
-	if err != nil {
-		return false, err
+	role := &rbacv1.Role{}
+	roleKey := client.ObjectKey{Namespace: clusterName, Name: hiveClaimOwnerRoleName}
+	switch err := r.Get(context.Background(), roleKey, role); {
+	case apierrors.IsNotFound(err):
+		logger.WithField("object", roleKey).Debug("role does not exist")
+		roleGone = true
+	case err != nil:
+		logger.WithError(err).Error("error getting role")
+		return false, errors.Wrap(err, "error getting role")
+	case role.GetDeletionTimestamp() != nil:
+		logger.WithField("object", roleKey).Debug("role has already been deleted")
+		roleGone = false
+	default:
+		logger.WithField("object", roleKey).Info("deleting existing role")
+		if err := r.Delete(context.Background(), role); err != nil {
+			logger.WithError(err).Error("error deleting role")
+			return false, errors.Wrap(err, "error deleting role")
+		}
+		roleGone = false
 	}
 
 	// Delete ClusterDeployment

@@ -4,25 +4,19 @@ package remoteclient
 
 import (
 	"context"
-	"net"
-	"net/http"
 	"time"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	machnet "k8s.io/apimachinery/pkg/util/net"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	kubeclient "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/restmapper"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	"github.com/openshift/hive/pkg/controller/utils"
-	"github.com/openshift/hive/pkg/util/scheme"
 )
 
 // Builder is used to build API clients to the remote cluster
@@ -188,110 +182,6 @@ func SetUnreachableCondition(cd *hivev1.ClusterDeployment, connectionError error
 		updateCheck,
 	)
 	return
-}
-
-type builder struct {
-	c              client.Client
-	cd             *hivev1.ClusterDeployment
-	controllerName hivev1.ControllerName
-	urlToUse       int
-}
-
-const (
-	activeURL = iota
-	primaryURL
-	secondaryURL
-)
-
-func (b *builder) Build() (client.Client, error) {
-	cfg, err := b.RESTConfig()
-	if err != nil {
-		return nil, err
-	}
-	// Verify reachability of client
-	dc, err := discovery.NewDiscoveryClientForConfig(cfg)
-	if err != nil {
-		return nil, err
-	}
-	_, err = restmapper.GetAPIGroupResources(dc)
-	if err != nil {
-		return nil, err
-	}
-	c, err := client.New(cfg, client.Options{
-		Scheme: scheme.GetScheme(),
-	})
-	if err != nil {
-		return nil, err
-	}
-	return client.WithFieldOwner(c, "hive2-"+string(b.controllerName)), nil
-}
-
-func (b *builder) BuildDynamic() (dynamic.Interface, error) {
-	cfg, err := b.RESTConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	client, err := dynamic.NewForConfig(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	return client, nil
-}
-
-func (b *builder) BuildKubeClient() (kubeclient.Interface, error) {
-	cfg, err := b.RESTConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	client, err := kubeclient.NewForConfig(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	return client, nil
-}
-
-func (b *builder) UsePrimaryAPIURL() Builder {
-	b.urlToUse = primaryURL
-	return b
-}
-
-func (b *builder) UseSecondaryAPIURL() Builder {
-	b.urlToUse = secondaryURL
-	return b
-}
-
-func (b *builder) RESTConfig() (*rest.Config, error) {
-	cfg, err := unadulteratedRESTConfig(b.c, b.cd)
-	if err != nil {
-		return nil, err
-	}
-
-	utils.AddControllerMetricsTransportWrapper(cfg, b.controllerName, true)
-
-	if override := b.cd.Spec.ControlPlaneConfig.APIURLOverride; override != "" {
-		if b.urlToUse == primaryURL ||
-			(b.urlToUse == activeURL && IsPrimaryURLActive(b.cd)) {
-			cfg.Host = override
-		}
-	}
-
-	if override := b.cd.Spec.ControlPlaneConfig.APIServerIPOverride; override != "" {
-		dialer := &net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
-		}
-		cfg.Dial = createDialContext(dialer, override)
-		// HIVE-2272: Work around upstream memory leak per
-		// https://github.com/kubernetes/kubernetes/issues/118703#issuecomment-1595072383
-		// TODO: Revert or adapt when upstream fix is available
-		cfg.Proxy = machnet.NewProxierWithNoProxyCIDR(http.ProxyFromEnvironment)
-	}
-
-	return cfg, nil
 }
 
 func unadulteratedRESTConfig(c client.Client, cd *hivev1.ClusterDeployment) (*rest.Config, error) {

@@ -762,7 +762,7 @@ type fakeKubeCLI struct {
 	createdSyncSet createdSyncSetInfo
 }
 
-func (f *fakeKubeCLI) ApplyRuntimeObject(obj runtime.Object, scheme *runtime.Scheme) (resource.ApplyResult, error) {
+func (f *fakeKubeCLI) Apply(ctx context.Context, obj interface{}, opts ...resource.ApplyOption) (resource.ApplyResultV2, error) {
 	ss := obj.(*hivev1.SyncSet)
 	created := createdSyncSetInfo{
 		name:      ss.Name,
@@ -786,7 +786,7 @@ func (f *fakeKubeCLI) ApplyRuntimeObject(obj runtime.Object, scheme *runtime.Sch
 		if uic, ok := raw.Object.(*unstructured.Unstructured); ok && uic.GetKind() == "IngressController" {
 			var ic ingresscontroller.IngressController
 			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(uic.Object, &ic); err != nil {
-				return "", err
+				return resource.ApplyResultV2{}, err
 			}
 			raw = runtime.RawExtension{Object: &ic}
 		}
@@ -818,7 +818,7 @@ func (f *fakeKubeCLI) ApplyRuntimeObject(obj runtime.Object, scheme *runtime.Sch
 
 	f.createdSyncSet = created
 
-	return "", nil
+	return resource.ApplyResultV2{State: resource.ConfiguredV2}, nil
 }
 
 func validateSyncSet(t *testing.T, existingSyncSet createdSyncSetInfo, expectedSecrets []string, expectedIngressControllers []SyncSetIngressEntry) {

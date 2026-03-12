@@ -58,7 +58,7 @@ var webhookAssets = []string{
 	"config/hiveadmission/selectorsyncset-webhook.yaml",
 }
 
-func (r *ReconcileHiveConfig) deployHiveAdmission(hLog log.FieldLogger, h resource.Helper, instance *hivev1.HiveConfig, namespacesToClean []string, additionalHashes ...string) error {
+func (r *ReconcileHiveConfig) deployHiveAdmission(hLog log.FieldLogger, h resource.HelperV2, instance *hivev1.HiveConfig, namespacesToClean []string, additionalHashes ...string) error {
 	deploymentAsset := "config/hiveadmission/deployment.yaml"
 	namespacedAssets := []string{
 		"config/hiveadmission/service.yaml",

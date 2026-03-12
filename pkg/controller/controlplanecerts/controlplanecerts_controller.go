@@ -64,7 +64,7 @@ var (
 )
 
 type applier interface {
-	ApplyRuntimeObject(obj runtime.Object, scheme *runtime.Scheme) (resource.ApplyResult, error)
+	Apply(ctx context.Context, obj interface{}, opts ...resource.ApplyOption) (resource.ApplyResultV2, error)
 }
 
 // Add creates a new ControlPlaneCerts Controller and adds it to the Manager with default RBAC. The Manager will set fields on the Controller
@@ -82,17 +82,20 @@ func Add(mgr manager.Manager) error {
 // NewReconciler returns a new reconcile.Reconciler
 func NewReconciler(mgr manager.Manager, rateLimiter flowcontrol.RateLimiter) reconcile.Reconciler {
 	logger := log.WithField("controller", ControllerName)
-	helper, err := resource.NewHelper(
+	localClient := controllerutils.NewClientWithMetricsOrDie(mgr, ControllerName, &rateLimiter)
+
+	// V2: Create helper with local client for Server-Side Apply
+	helper, err := resource.NewHelperV2(
 		logger,
-		resource.FromRESTConfig(mgr.GetConfig()),
-		resource.WithControllerName(ControllerName),
-		resource.WithMetrics())
+		resource.WithClient(localClient),
+		resource.WithControllerNameV2(ControllerName))
 	if err != nil {
 		// Hard exit if we can't create this controller
 		logger.WithError(err).Fatal("unable to create resource helper")
 	}
+
 	r := &ReconcileControlPlaneCerts{
-		Client:  controllerutils.NewClientWithMetricsOrDie(mgr, ControllerName, &rateLimiter),
+		Client:  localClient,
 		scheme:  mgr.GetScheme(),
 		applier: helper,
 	}
@@ -225,7 +228,9 @@ func (r *ReconcileControlPlaneCerts) Reconcile(ctx context.Context, request reco
 		return reconcile.Result{}, err
 	}
 
-	if _, err = r.applier.ApplyRuntimeObject(desiredSyncSet, r.scheme); err != nil {
+	// V2: Use Apply with context and structured results
+	_, err = r.applier.Apply(context.TODO(), desiredSyncSet)
+	if err != nil {
 		cdLog.WithError(err).Error("failed to apply control plane certificates syncset")
 		return reconcile.Result{}, err
 	}

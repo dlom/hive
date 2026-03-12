@@ -64,9 +64,9 @@ var clusterDeploymentRemoteIngressConditions = []hivev1.ClusterDeploymentConditi
 	hivev1.IngressCertificateNotFoundCondition,
 }
 
-// kubeCLIApplier knows how to ApplyRuntimeObject.
+// kubeCLIApplier knows how to Apply runtime objects.
 type kubeCLIApplier interface {
-	ApplyRuntimeObject(obj runtime.Object, scheme *runtime.Scheme) (resource.ApplyResult, error)
+	Apply(ctx context.Context, obj interface{}, opts ...resource.ApplyOption) (resource.ApplyResultV2, error)
 }
 
 // Add creates a new RemoteIngress Controller and adds it to the Manager with default RBAC. The Manager will set fields on the
@@ -84,17 +84,20 @@ func Add(mgr manager.Manager) error {
 // NewReconciler returns a new reconcile.Reconciler
 func NewReconciler(mgr manager.Manager, rateLimiter flowcontrol.RateLimiter) reconcile.Reconciler {
 	logger := log.WithField("controller", ControllerName)
-	helper, err := resource.NewHelper(
+	localClient := controllerutils.NewClientWithMetricsOrDie(mgr, ControllerName, &rateLimiter)
+
+	// V2: Create helper with local client for Server-Side Apply
+	helper, err := resource.NewHelperV2(
 		logger,
-		resource.FromRESTConfig(mgr.GetConfig()),
-		resource.WithControllerName(ControllerName),
-		resource.WithMetrics())
+		resource.WithClient(localClient),
+		resource.WithControllerNameV2(ControllerName))
 	if err != nil {
 		// Hard exit if we can't create this controller
 		logger.WithError(err).Fatal("unable to create resource helper")
 	}
+
 	return &ReconcileRemoteClusterIngress{
-		Client:  controllerutils.NewClientWithMetricsOrDie(mgr, ControllerName, &rateLimiter),
+		Client:  localClient,
 		scheme:  mgr.GetScheme(),
 		logger:  log.WithField("controller", ControllerName),
 		kubeCLI: helper,
@@ -344,7 +347,8 @@ func (r *ReconcileRemoteClusterIngress) syncSyncSet(rContext *reconcileContext, 
 		return err
 	}
 
-	if _, err := r.kubeCLI.ApplyRuntimeObject(syncSet, r.scheme); err != nil {
+	// V2: Use Apply with context and structured results
+	if _, err := r.kubeCLI.Apply(context.TODO(), syncSet); err != nil {
 		rContext.logger.WithError(err).Error("failed to apply syncset")
 		return err
 	}

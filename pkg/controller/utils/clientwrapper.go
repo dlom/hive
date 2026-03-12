@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -16,38 +15,10 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
+	clientmetrics "github.com/openshift/hive/internal/clientutil/metrics"
 )
-
-var (
-	metricKubeClientRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "hive_kube_client_requests_total",
-		Help: "Counter incremented for each kube client request.",
-	},
-		[]string{"controller", "method", "resource", "remote", "status"},
-	)
-	metricKubeClientRequestSeconds = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "hive_kube_client_request_seconds",
-		Help:    "Length of time for kubernetes client requests.",
-		Buckets: []float64{0.05, 0.1, 0.5, 1, 5, 10, 30, 60, 120},
-	},
-		[]string{"controller", "method", "resource", "remote", "status"},
-	)
-	metricKubeClientRequestsCancelled = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "hive_kube_client_requests_cancelled_total",
-		Help: "Counter incremented for each kube client request cancelled.",
-	},
-		[]string{"controller", "method", "resource", "remote"},
-	)
-)
-
-func init() {
-	metrics.Registry.MustRegister(metricKubeClientRequests)
-	metrics.Registry.MustRegister(metricKubeClientRequestSeconds)
-	metrics.Registry.MustRegister(metricKubeClientRequestsCancelled)
-}
 
 // NewClientWithMetricsOrDie creates a new controller-runtime client with a wrapper which increments
 // metrics for requests by controller name, HTTP method, URL path, and whether or not the request was
@@ -114,7 +85,7 @@ func (cmt *ControllerMetricsTripper) CancelRequest(req *http.Request) {
 	// being cancelled as this could prove valuable in tracking when we have a performance issue.
 	remoteStr := strconv.FormatBool(cmt.Remote)
 	path, _ := parsePath(req.URL.Path)
-	metricKubeClientRequestsCancelled.WithLabelValues(cmt.Controller.String(), req.Method, path, remoteStr).Inc()
+	clientmetrics.RecordRequestCancelled(cmt.Controller.String(), req.Method, path, remoteStr)
 	log.WithFields(log.Fields{
 		"controller": cmt.Controller.String(),
 		"method":     req.Method,
@@ -136,8 +107,8 @@ func (cmt *ControllerMetricsTripper) RoundTrip(req *http.Request) (*http.Respons
 	resp, err := cmt.RoundTripper.RoundTrip(req)
 	applyTime := metav1.Now().Sub(startTime)
 	if err == nil && pathErr == nil {
-		metricKubeClientRequests.WithLabelValues(cmt.Controller.String(), req.Method, path, remoteStr, resp.Status).Inc()
-		metricKubeClientRequestSeconds.WithLabelValues(cmt.Controller.String(), req.Method, path, remoteStr, resp.Status).Observe(applyTime.Seconds())
+		clientmetrics.RecordRequest(cmt.Controller.String(), req.Method, path, remoteStr, resp.Status)
+		clientmetrics.RecordRequestDuration(cmt.Controller.String(), req.Method, path, remoteStr, resp.Status, applyTime.Seconds())
 		if applyTime >= 5*time.Second {
 			log.WithFields(log.Fields{
 				"controller":    cmt.Controller.String(),

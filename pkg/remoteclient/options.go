@@ -8,6 +8,13 @@ import (
 	"github.com/openshift/hive/internal/clientutil"
 )
 
+// URL selection constants
+const (
+	activeURL int = iota
+	primaryURL
+	secondaryURL
+)
+
 // builderConfig holds the configuration for building remote clients.
 type builderConfig struct {
 	// Required: either (client + cd) or kubeconfigSecret

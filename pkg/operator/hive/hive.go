@@ -50,7 +50,7 @@ var (
 	controllersInTheirOwnIsolatedPods = hivev1.ControllerNames{hivev1.ClustersyncControllerName}
 )
 
-func (r *ReconcileHiveConfig) deployHive(hLog log.FieldLogger, h resource.Helper, instance *hivev1.HiveConfig, namespacesToClean []string, configHashes ...string) error {
+func (r *ReconcileHiveConfig) deployHive(hLog log.FieldLogger, h resource.HelperV2, instance *hivev1.HiveConfig, namespacesToClean []string, configHashes ...string) error {
 	deploymentAsset := "config/controllers/deployment.yaml"
 	namespacedAssets := []string{
 		"config/controllers/service.yaml",
@@ -377,7 +377,7 @@ func (r *ReconcileHiveConfig) deployHive(hLog log.FieldLogger, h resource.Helper
 	return nil
 }
 
-func (r *ReconcileHiveConfig) includeAdditionalCAs(hLog log.FieldLogger, h resource.Helper, instance *hivev1.HiveConfig, hiveDeployment *appsv1.Deployment, hiveContainer *corev1.Container, namespacesToClean []string) error {
+func (r *ReconcileHiveConfig) includeAdditionalCAs(hLog log.FieldLogger, h resource.HelperV2, instance *hivev1.HiveConfig, hiveDeployment *appsv1.Deployment, hiveContainer *corev1.Container, namespacesToClean []string) error {
 	// Delete any additional CA secrets from previous target namespaces
 	for _, ns := range namespacesToClean {
 		hLog.Infof("Deleting secret/%s from old target namespace %s", hiveAdditionalCASecret, ns)
@@ -488,7 +488,7 @@ func (r *ReconcileHiveConfig) includeHivePrivateImagePullSecret(hLog log.FieldLo
 	hiveContainer.Env = append(hiveContainer.Env, hiveImagePullSecretEnvVar)
 }
 
-func (r *ReconcileHiveConfig) copyHiveImagePullSecret(hLog log.FieldLogger, h resource.Helper, instance *hivev1.HiveConfig) error {
+func (r *ReconcileHiveConfig) copyHiveImagePullSecret(hLog log.FieldLogger, h resource.HelperV2, instance *hivev1.HiveConfig) error {
 	ref := getImagePullSecretReference(instance)
 	if ref == nil {
 		hLog.Debug("HiveImagePullSecret is not provided in HiveConfig, it will not be copied")

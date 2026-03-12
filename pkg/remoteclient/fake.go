@@ -118,6 +118,18 @@ func (b *fakeBuilder) RESTConfig() (*rest.Config, error) {
 	return nil, errors.New("RESTConfig not implemented for fake cluster client builder")
 }
 
+// UsePrimaryAPIURLV2 implements BuilderV2.UsePrimaryAPIURLV2().
+func (b *fakeBuilder) UsePrimaryAPIURLV2() BuilderV2 {
+	b.urlToUse = primaryURL
+	return b
+}
+
+// UseSecondaryAPIURLV2 implements BuilderV2.UseSecondaryAPIURLV2().
+func (b *fakeBuilder) UseSecondaryAPIURLV2() BuilderV2 {
+	b.urlToUse = secondaryURL
+	return b
+}
+
 // V2 context-aware methods for BuilderV2 interface compliance
 
 // BuildWithContext implements BuilderV2.BuildWithContext().

@@ -83,7 +83,7 @@ func newAsset(path string, values map[string]string) (asset, error) {
 	return ret, errors.Wrapf(err, "unable to process asset template %s", path)
 }
 
-func (r *ReconcileHiveConfig) deployStatefulSet(c ssCfg, hLog log.FieldLogger, h resource.Helper, hiveconfig *hivev1.HiveConfig, hiveControllersConfigHash string, namespacesToClean []string) error {
+func (r *ReconcileHiveConfig) deployStatefulSet(c ssCfg, hLog log.FieldLogger, h resource.HelperV2, hiveconfig *hivev1.HiveConfig, hiveControllersConfigHash string, namespacesToClean []string) error {
 	templateValues := map[string]string{
 		"ControllerName": string(c.name),
 	}

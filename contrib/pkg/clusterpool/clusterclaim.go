@@ -1,6 +1,7 @@
 package clusterpool
 
 import (
+	"context"
 	"time"
 
 	"github.com/pkg/errors"
@@ -12,7 +13,6 @@ import (
 
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	"github.com/openshift/hive/contrib/pkg/utils"
-	"github.com/openshift/hive/pkg/util/scheme"
 )
 
 type ClusterClaimOptions struct {
@@ -51,7 +51,6 @@ func NewClaimClusterPoolCommand() *cobra.Command {
 }
 
 func (o ClusterClaimOptions) run() error {
-	scheme := scheme.GetScheme()
 	claim := o.generateClaim()
 
 	rh, err := utils.GetResourceHelper("util-clusterpool-clusterclaim", o.log)
@@ -65,7 +64,8 @@ func (o ClusterClaimOptions) run() error {
 		}
 	}
 	claim.Namespace = o.Namespace
-	if _, err := rh.ApplyRuntimeObject(claim, scheme); err != nil {
+	// V2: Use Apply with context
+	if _, err := rh.Apply(context.TODO(), claim); err != nil {
 		return err
 	}
 

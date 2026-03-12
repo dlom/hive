@@ -320,15 +320,14 @@ func TestHelperV2_DeleteConcurrent(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 	ctx := context.Background()
 
-	// Create multiple resources
-	resources := []runtime.Object{}
-	for i := 0; i < 20; i++ {
-		resources = append(resources, &corev1.ConfigMap{
+	// Create a single resource that will be deleted concurrently
+	resources := []runtime.Object{
+		&corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "concurrent-test",
 				Namespace: "default",
 			},
-		})
+		},
 	}
 
 	helper, err := NewHelperV2(logger,

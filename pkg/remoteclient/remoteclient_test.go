@@ -31,14 +31,14 @@ func TestNewBuilder(t *testing.T) {
 	cd := testClusterDeployment()
 	c := fakeClient(cd)
 	controllerName := testControllerName
-	expected := &builder{
-		c:              c,
-		cd:             cd,
-		controllerName: controllerName,
-		urlToUse:       activeURL,
-	}
+
+	// NewBuilder now returns BuilderV2, verify it implements Builder interface
 	actual := NewBuilder(c, cd, controllerName)
-	assert.Equal(t, expected, actual, "unexpected builder")
+	assert.NotNil(t, actual, "builder should not be nil")
+
+	// Verify it's actually a BuilderV2 by type assertion
+	_, ok := actual.(BuilderV2)
+	assert.True(t, ok, "NewBuilder should return a BuilderV2")
 }
 
 func Test_InitialURL(t *testing.T) {

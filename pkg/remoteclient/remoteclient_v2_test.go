@@ -7,7 +7,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	"github.com/openshift/hive/internal/clientutil"
@@ -16,7 +15,7 @@ import (
 // TestNewBuilderV2_WithOptions tests that functional options are applied correctly.
 func TestNewBuilderV2_WithOptions(t *testing.T) {
 	cd := testClusterDeployment()
-	c := fake.NewClientBuilder().Build()
+	c := fakeClient(cd)
 	cache := clientutil.NewCache()
 
 	builder := NewBuilderV2(
@@ -59,7 +58,7 @@ func TestNewBuilderV2_WithOptions(t *testing.T) {
 // TestNewBuilderV2_WithoutCache tests that cache can be disabled.
 func TestNewBuilderV2_WithoutCache(t *testing.T) {
 	cd := testClusterDeployment()
-	c := fake.NewClientBuilder().Build()
+	c := fakeClient(cd)
 
 	builder := NewBuilderV2(
 		WithClusterDeployment(c, cd),
@@ -91,38 +90,57 @@ func TestBuilderV2_ImplementsBuilderV2(t *testing.T) {
 // TestBuilderV2_URLSelection tests URL selection methods.
 func TestBuilderV2_URLSelection(t *testing.T) {
 	cd := testClusterDeployment()
-	c := fake.NewClientBuilder().Build()
+	c := fakeClient(cd)
 
 	builder := NewBuilderV2(
 		WithClusterDeployment(c, cd),
 		WithControllerName(hivev1.ClustersyncControllerName),
 	)
 
-	// Test UsePrimaryAPIURL
-	primaryBuilder := builder.UsePrimaryAPIURL()
-	v2Primary := primaryBuilder.(*builderV2)
+	// Test v1 methods (mutate for backward compatibility)
+	// UsePrimaryAPIURL mutates the builder
+	returnedBuilder := builder.UsePrimaryAPIURL()
+	if returnedBuilder != builder {
+		t.Error("UsePrimaryAPIURL() should return same instance for v1 compatibility")
+	}
+	v2Primary := builder.(*builderV2)
 	if v2Primary.config.urlSelection != primaryURL {
 		t.Error("UsePrimaryAPIURL() did not set primaryURL")
 	}
 
-	// Test UseSecondaryAPIURL
-	secondaryBuilder := builder.UseSecondaryAPIURL()
-	v2Secondary := secondaryBuilder.(*builderV2)
+	// UseSecondaryAPIURL also mutates
+	builder.UseSecondaryAPIURL()
+	v2Secondary := builder.(*builderV2)
 	if v2Secondary.config.urlSelection != secondaryURL {
 		t.Error("UseSecondaryAPIURL() did not set secondaryURL")
 	}
 
-	// Verify immutability - original builder should be unchanged
-	v2Original := builder.(*builderV2)
+	// Test v2 methods (immutable)
+	builder2 := NewBuilderV2(
+		WithClusterDeployment(c, cd),
+		WithControllerName(hivev1.ClustersyncControllerName),
+	)
+
+	primaryBuilder2 := builder2.UsePrimaryAPIURLV2()
+	if primaryBuilder2 == builder2 {
+		t.Error("UsePrimaryAPIURLV2() should return new instance (immutable)")
+	}
+	v2Primary2 := primaryBuilder2.(*builderV2)
+	if v2Primary2.config.urlSelection != primaryURL {
+		t.Error("UsePrimaryAPIURLV2() did not set primaryURL on new instance")
+	}
+	// Original should be unchanged
+	v2Original := builder2.(*builderV2)
 	if v2Original.config.urlSelection != activeURL {
-		t.Error("Original builder was mutated by URL selection methods")
+		t.Error("Original builder was mutated by v2 method")
 	}
 }
 
 // TestBuilderV2_ContextCancellation tests that context cancellation is respected.
 func TestBuilderV2_ContextCancellation(t *testing.T) {
 	cd := testClusterDeployment()
-	c := fake.NewClientBuilder().WithObjects(cd).Build()
+	kubeconfigSecret := testKubeconfigSecret(t)
+	c := fakeClient(cd, kubeconfigSecret)
 
 	builder := NewBuilderV2(
 		WithClusterDeployment(c, cd),
@@ -145,7 +163,8 @@ func TestBuilderV2_ContextCancellation(t *testing.T) {
 // TestBuilderV2_ContextTimeout tests that context timeout is respected.
 func TestBuilderV2_ContextTimeout(t *testing.T) {
 	cd := testClusterDeployment()
-	c := fake.NewClientBuilder().WithObjects(cd).Build()
+	kubeconfigSecret := testKubeconfigSecret(t)
+	c := fakeClient(cd, kubeconfigSecret)
 
 	builder := NewBuilderV2(
 		WithClusterDeployment(c, cd),
@@ -171,7 +190,8 @@ func TestBuilderV2_ContextTimeout(t *testing.T) {
 // TestBuilderV2_BackwardCompatibility tests v1 methods still work.
 func TestBuilderV2_BackwardCompatibility(t *testing.T) {
 	cd := testClusterDeployment()
-	c := fake.NewClientBuilder().WithObjects(cd).Build()
+	kubeconfigSecret := testKubeconfigSecret(t)
+	c := fakeClient(cd, kubeconfigSecret)
 
 	builder := NewBuilderV2(
 		WithClusterDeployment(c, cd),
@@ -299,7 +319,7 @@ func TestGenerateCacheKey(t *testing.T) {
 
 	key := generateCacheKey(cd, secret, apiURL)
 
-	expectedClusterID := "test-namespace/test-cluster"
+	expectedClusterID := "test-namespace/test-cluster-deployment"
 	if key.ClusterID != expectedClusterID {
 		t.Errorf("ClusterID = %q, want %q", key.ClusterID, expectedClusterID)
 	}
@@ -343,7 +363,7 @@ func TestGenerateCacheKeyFromSecret(t *testing.T) {
 // TestNewBuilder_ReturnsV2 tests that NewBuilder returns a v2 builder.
 func TestNewBuilder_ReturnsV2(t *testing.T) {
 	cd := testClusterDeployment()
-	c := fake.NewClientBuilder().Build()
+	c := fakeClient(cd)
 
 	builder := NewBuilder(c, cd, hivev1.ClustersyncControllerName)
 

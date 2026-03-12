@@ -53,13 +53,13 @@ func DetermineReleaseImageFromSource(sourceURL string) (string, error) {
 	return payload.PullSpec, nil
 }
 
-func GetResourceHelper(controllerName hivev1.ControllerName, logger log.FieldLogger) (resource.Helper, error) {
+func GetResourceHelper(controllerName hivev1.ControllerName, logger log.FieldLogger) (resource.HelperV2, error) {
 	cfg, err := config.GetConfig()
 	if err != nil {
 		logger.WithError(err).Error("Cannot get client config")
 		return nil, err
 	}
-	return resource.NewHelper(logger, resource.FromRESTConfig(cfg), resource.WithControllerName(controllerName))
+	return resource.NewHelperV2(logger, resource.WithRESTConfigV2(cfg), resource.WithControllerNameV2(controllerName))
 }
 
 func DefaultNamespace() (string, error) {

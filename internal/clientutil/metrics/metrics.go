@@ -127,3 +127,18 @@ func RecordOperation(controller, operation, gvk, result string, duration float64
 	operationDurationSeconds.WithLabelValues(controller, operation, gvk, result).Observe(duration)
 	operationTotal.WithLabelValues(controller, operation, gvk, result).Inc()
 }
+
+// RecordRequest records a Kubernetes client request.
+func RecordRequest(controller, method, resource, remote, status string) {
+	metricKubeClientRequests.WithLabelValues(controller, method, resource, remote, status).Inc()
+}
+
+// RecordRequestDuration records the duration of a Kubernetes client request.
+func RecordRequestDuration(controller, method, resource, remote, status string, duration float64) {
+	metricKubeClientRequestSeconds.WithLabelValues(controller, method, resource, remote, status).Observe(duration)
+}
+
+// RecordRequestCancelled records a cancelled Kubernetes client request.
+func RecordRequestCancelled(controller, method, resource, remote string) {
+	metricKubeClientRequestsCancelled.WithLabelValues(controller, method, resource, remote).Inc()
+}

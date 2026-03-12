@@ -284,21 +284,21 @@ func (b *builderV2) RESTConfig() (*rest.Config, error) {
 }
 
 // UsePrimaryAPIURL implements Builder.UsePrimaryAPIURL().
-// Returns a new builder with primary URL selection (immutable).
-// Note: Returns Builder interface for v1 compatibility. Use UsePrimaryAPIURLV2() for v2 chaining.
+// Mutates the builder to use primary URL selection.
+// For v1 compatibility - mutates state like the old builder.
+// Use UsePrimaryAPIURLV2() for immutable v2 API.
 func (b *builderV2) UsePrimaryAPIURL() Builder {
-	newConfig := b.config
-	newConfig.urlSelection = primaryURL
-	return &builderV2{config: newConfig}
+	b.config.urlSelection = primaryURL
+	return b
 }
 
 // UseSecondaryAPIURL implements Builder.UseSecondaryAPIURL().
-// Returns a new builder with secondary URL selection (immutable).
-// Note: Returns Builder interface for v1 compatibility. Use UseSecondaryAPIURLV2() for v2 chaining.
+// Mutates the builder to use secondary URL selection.
+// For v1 compatibility - mutates state like the old builder.
+// Use UseSecondaryAPIURLV2() for immutable v2 API.
 func (b *builderV2) UseSecondaryAPIURL() Builder {
-	newConfig := b.config
-	newConfig.urlSelection = secondaryURL
-	return &builderV2{config: newConfig}
+	b.config.urlSelection = secondaryURL
+	return b
 }
 
 // UsePrimaryAPIURLV2 returns a new builder with primary URL selection.

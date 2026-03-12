@@ -33,7 +33,6 @@ import (
 	azurecreds "github.com/openshift/hive/pkg/creds/azure"
 	gcpcreds "github.com/openshift/hive/pkg/creds/gcp"
 	"github.com/openshift/hive/pkg/resource"
-	"github.com/openshift/hive/pkg/util/scheme"
 )
 
 const longDesc = `
@@ -115,7 +114,6 @@ func (o *Options) Validate(cmd *cobra.Command) error {
 
 // Run executes the command
 func (o *Options) Run(args []string) error {
-	scheme := scheme.GetScheme()
 	rh, err := o.getResourceHelper()
 	if err != nil {
 		return err
@@ -181,7 +179,8 @@ func (o *Options) Run(args []string) error {
 
 	log.Infof("created cloud credentials secret: %s", credsSecret.Name)
 	credsSecret.Namespace = hiveNSName
-	if _, err := rh.ApplyRuntimeObject(credsSecret, scheme); err != nil {
+	// V2: Use Apply with context
+	if _, err := rh.Apply(context.TODO(), credsSecret); err != nil {
 		log.WithError(err).Fatal("failed to save generated secret")
 	}
 
@@ -369,16 +368,16 @@ func (o *Options) generateAzureCredentialsSecret() (*corev1.Secret, error) {
 	}, nil
 }
 
-func (o *Options) getResourceHelper() (resource.Helper, error) {
+func (o *Options) getResourceHelper() (resource.HelperV2, error) {
 	cfg, err := config.GetConfig()
 	if err != nil {
 		log.WithError(err).Error("Cannot get client config")
 		return nil, err
 	}
-	return resource.NewHelper(
+	return resource.NewHelperV2(
 		log.WithField("command", "adm manage-dns enable"),
-		resource.FromRESTConfig(cfg),
-		resource.WithControllerName("util-managedns-enable"))
+		resource.WithRESTConfigV2(cfg),
+		resource.WithControllerNameV2("util-managedns-enable"))
 }
 
 func (o *Options) setupLocalClients() error {

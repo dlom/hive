@@ -169,27 +169,6 @@ func NewReconciler(mgr manager.Manager, rateLimiter flowcontrol.RateLimiter) (*R
 	}, nil
 }
 
-func resourceHelperBuilderFunc(
-	cd *hivev1.ClusterDeployment,
-	remoteClusterAPIClientBuilderFunc func(cd *hivev1.ClusterDeployment) remoteclient.Builder,
-	logger log.FieldLogger,
-) (
-	resource.Helper,
-	error,
-) {
-	if controllerutils.IsFakeCluster(cd) {
-		return resource.NewFakeHelper(logger), nil
-	}
-
-	restConfig, err := remoteClusterAPIClientBuilderFunc(cd).RESTConfig()
-	if err != nil {
-		logger.WithError(err).Error("unable to get REST config")
-		return nil, err
-	}
-
-	return resource.NewHelper(logger, resource.FromRESTConfig(restConfig), resource.WithControllerName(ControllerName))
-}
-
 // resourceHelperBuilderFuncV2 creates a v2 resource helper with Server-Side Apply and client caching
 func resourceHelperBuilderFuncV2(
 	ctx context.Context,
@@ -1106,71 +1085,6 @@ func deleteFromTargetClusterV2(
 		} else if result.State == resource.DeletionInProgressV2 {
 			// Resource has finalizers, still deleting
 			logger.Debug("resource deletion in progress (finalizers present)")
-			remainingResources = append(remainingResources, r)
-		}
-	}
-	return remainingResources, utilerrors.NewAggregate(allErrs)
-}
-
-// V1 functions (kept for reference)
-
-func applyToTargetCluster(
-	obj hivev1.MetaRuntimeObject,
-	applyFnMetricLabel string,
-	applyFn func(obj []byte) (resource.ApplyResult, error),
-	logger log.FieldLogger,
-) error {
-	startTime := time.Now()
-	labels := obj.GetLabels()
-	if labels == nil {
-		labels = make(map[string]string, 1)
-	}
-	// Inject the hive managed annotation to help end-users see that a resource is managed by hive:
-	labels[constants.HiveManagedLabel] = "true"
-	obj.SetLabels(labels)
-
-	bytes, err := json.Marshal(obj)
-	if err != nil {
-		logger.WithError(err).Error("error marshalling unstructured object to json bytes")
-		return err
-	}
-
-	applyResult, err := applyFn(bytes)
-	// Record the amount of time we took to apply this specific resource. When combined with the metric for duration of
-	// our kube client requests, we can get an idea how much time we're spending cpu bound vs network bound.
-	applyTime := metav1.Now().Sub(startTime).Seconds()
-	if err != nil {
-		logger.WithError(err).Warn("error applying resource")
-		metricResourcesApplied.WithLabelValues(applyFnMetricLabel, metricResultError).Inc()
-		metricTimeToApplySyncSetResource.WithLabelValues(applyFnMetricLabel, metricResultError).Observe(applyTime)
-	} else {
-		logger.WithField("applyResult", applyResult).Debug("resource applied")
-		metricResourcesApplied.WithLabelValues(applyFnMetricLabel, metricResultSuccess).Inc()
-		metricTimeToApplySyncSetResource.WithLabelValues(applyFnMetricLabel, metricResultSuccess).Observe(applyTime)
-	}
-	return err
-}
-
-func deleteFromTargetCluster(
-	resources []hiveintv1alpha1.SyncResourceReference,
-	shouldDelete func(hiveintv1alpha1.SyncResourceReference) bool,
-	resourceHelper resource.Helper,
-	logger log.FieldLogger,
-) (remainingResources []hiveintv1alpha1.SyncResourceReference, returnErr error) {
-	var allErrs []error
-	for _, r := range resources {
-		if shouldDelete != nil && !shouldDelete(r) {
-			remainingResources = append(remainingResources, r)
-			continue
-		}
-		logger := logger.WithField("resourceNamespace", r.Namespace).
-			WithField("resourceName", r.Name).
-			WithField("resourceAPIVersion", r.APIVersion).
-			WithField("resourceKind", r.Kind)
-		logger.Info("deleting resource")
-		if err := resourceHelper.Delete(r.APIVersion, r.Kind, r.Namespace, r.Name); err != nil {
-			logger.WithError(err).Warn("could not delete resource")
-			allErrs = append(allErrs, fmt.Errorf("failed to delete %s, Kind=%s %s/%s: %w", r.APIVersion, r.Kind, r.Namespace, r.Name, err))
 			remainingResources = append(remainingResources, r)
 		}
 	}
