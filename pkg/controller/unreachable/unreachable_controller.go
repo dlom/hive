@@ -188,6 +188,12 @@ func (r *ReconcileRemoteMachineSet) Reconcile(ctx context.Context, request recon
 		return reconcile.Result{}, nil
 	}
 
+	// Skip fake clusters (used for scale testing)
+	if controllerutils.IsFakeCluster(cd) {
+		cdLog.Debug("skipping fake cluster")
+		return reconcile.Result{}, nil
+	}
+
 	// Check whether, prior to this reconciliation, the remote cluster was considered unreachable. Also, get the
 	// last time that the unreachable check was performed.
 	wasUnreachable, lastCheck := controllerutils.Unreachable(cd)

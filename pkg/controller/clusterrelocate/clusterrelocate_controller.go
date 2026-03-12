@@ -243,6 +243,12 @@ func (r *ReconcileClusterRelocate) Reconcile(ctx context.Context, request reconc
 		return reconcile.Result{}, err
 	}
 
+	// Skip fake clusters (used for scale testing)
+	if controllerutils.IsFakeCluster(cd) {
+		logger.Debug("skipping fake cluster")
+		return reconcile.Result{}, nil
+	}
+
 	// Skip any copying actions for ClusterDeployment that has already been relocated
 	if relocateStatus == hivev1.RelocateComplete {
 		return r.finishRelocateCompletion(cd, currentRelocateName, logger)

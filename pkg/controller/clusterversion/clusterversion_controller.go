@@ -164,6 +164,12 @@ func (r *ReconcileClusterVersion) Reconcile(ctx context.Context, request reconci
 		return reconcile.Result{}, nil
 	}
 
+	// Skip fake clusters (used for scale testing)
+	if controllerutils.IsFakeCluster(cd) {
+		cdLog.Debug("skipping fake cluster")
+		return reconcile.Result{}, nil
+	}
+
 	// Check if cluster is marked as unreachable
 	if unreachable, _ := controllerutils.Unreachable(cd); unreachable {
 		cdLog.Debug("skipping cluster with unreachable condition")
