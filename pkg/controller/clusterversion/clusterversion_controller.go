@@ -164,14 +164,22 @@ func (r *ReconcileClusterVersion) Reconcile(ctx context.Context, request reconci
 		return reconcile.Result{}, nil
 	}
 
-	remoteClient, unreachable, requeue := remoteclient.ConnectToRemoteCluster(
-		cd,
-		r.remoteClusterAPIClientBuilder(cd),
-		r.Client,
-		cdLog,
-	)
-	if unreachable {
-		return reconcile.Result{Requeue: requeue}, nil
+	// Check if cluster is marked as unreachable
+	if unreachable, _ := controllerutils.Unreachable(cd); unreachable {
+		cdLog.Debug("skipping cluster with unreachable condition")
+		return reconcile.Result{}, nil
+	}
+
+	// Connect to remote cluster
+	remoteClient, err := r.remoteClusterAPIClientBuilder(cd).BuildWithContext(context.Background())
+	if err != nil {
+		cdLog.WithError(err).Info("remote cluster is unreachable")
+		controllerutils.SetUnreachableCondition(cd, err)
+		if updateErr := r.Client.Status().Update(context.Background(), cd); updateErr != nil {
+			cdLog.WithError(updateErr).Log(controllerutils.LogLevel(updateErr), "could not update clusterdeployment with unreachable condition")
+			return reconcile.Result{Requeue: true}, nil
+		}
+		return reconcile.Result{}, nil
 	}
 
 	clusterVersion := &openshiftapiv1.ClusterVersion{}

@@ -190,7 +190,7 @@ func (r *ReconcileRemoteMachineSet) Reconcile(ctx context.Context, request recon
 
 	// Check whether, prior to this reconciliation, the remote cluster was considered unreachable. Also, get the
 	// last time that the unreachable check was performed.
-	wasUnreachable, lastCheck := remoteclient.Unreachable(cd)
+	wasUnreachable, lastCheck := controllerutils.Unreachable(cd)
 	// Check whether, prior to this reconciliation, connectivity to the remote cluster was using the preferred API URL.
 	wasPrimaryActive := remoteclient.IsPrimaryURLActive(cd)
 	// Determine the amount of time to wait before rechecking connectivity to a reachable remote cluster.
@@ -242,7 +242,7 @@ func (r *ReconcileRemoteMachineSet) Reconcile(ctx context.Context, request recon
 	// Update conditions to reflect the current state of connectivity to the remote cluster.
 	unreachableChanged := false
 	if updateUnreachable {
-		unreachableChanged = remoteclient.SetUnreachableCondition(cd, unreachableError)
+		unreachableChanged = controllerutils.SetUnreachableCondition(cd, unreachableError)
 	}
 	overrideChanged := setActiveAPIURLOverrideCond(cd, primaryErr)
 

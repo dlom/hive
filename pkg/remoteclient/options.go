@@ -8,6 +8,10 @@ import (
 	"github.com/openshift/hive/internal/clientutil"
 )
 
+// ============================================================================
+// Configuration Types
+// ============================================================================
+
 // URL selection constants
 const (
 	activeURL int = iota
@@ -34,6 +38,10 @@ type builderConfig struct {
 	// URL selection
 	urlSelection int // activeURL, primaryURL, or secondaryURL
 }
+
+// ============================================================================
+// Builder Options
+// ============================================================================
 
 // BuilderOption is a functional option for configuring a Builder.
 type BuilderOption func(*builderConfig)

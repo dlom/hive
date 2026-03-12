@@ -19,7 +19,6 @@ import (
 // fakeBuilder builds fake clients for fake clusters. Used to simulate communication with a cluster
 // that doesn't actually exist in scale testing.
 type fakeBuilder struct {
-	urlToUse       int
 	clusterVersion string
 }
 
@@ -124,13 +123,13 @@ func (b *fakeBuilder) RESTConfigWithContext(ctx context.Context) (*rest.Config, 
 }
 
 // UsePrimaryAPIURL implements Builder.UsePrimaryAPIURL().
+// For fake builders, there's no URL override, so just return self.
 func (b *fakeBuilder) UsePrimaryAPIURL() Builder {
-	b.urlToUse = primaryURL
 	return b
 }
 
 // UseSecondaryAPIURL implements Builder.UseSecondaryAPIURL().
+// For fake builders, there's no URL override, so just return self.
 func (b *fakeBuilder) UseSecondaryAPIURL() Builder {
-	b.urlToUse = secondaryURL
 	return b
 }

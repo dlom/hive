@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -16,7 +15,6 @@ import (
 
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	"github.com/openshift/hive/pkg/constants"
-	testcd "github.com/openshift/hive/pkg/test/clusterdeployment"
 	testfake "github.com/openshift/hive/pkg/test/fake"
 )
 
@@ -26,16 +24,6 @@ const (
 	apiURL                                         = "https://api.hive-cluster.example.com:6443"
 	testControllerName       hivev1.ControllerName = "test-controller-name"
 )
-
-func Test_InitialURL(t *testing.T) {
-	cd := testClusterDeployment()
-	kubeconfigSecret := testKubeconfigSecret(t)
-	c := fakeClient(cd, kubeconfigSecret)
-	expected := apiURL
-	actual, err := InitialURL(c, cd)
-	assert.NoError(t, err, "unexpected error getting API URL")
-	assert.Equal(t, expected, actual, "unexpected API URL")
-}
 
 func Test_builder_RESTConfig(t *testing.T) {
 	cases := []struct {
@@ -139,44 +127,6 @@ func Test_builder_RESTConfig(t *testing.T) {
 	}
 }
 
-func Test_Unreachable(t *testing.T) {
-	probeTime := time.Unix(123456789, 0)
-	cases := []struct {
-		name                string
-		cd                  *hivev1.ClusterDeployment
-		expectedUnreachable bool
-		expectedLastCheck   time.Time
-	}{
-		{
-			name: "unreachable still unknown",
-			cd: testcd.Build(testcd.WithCondition(hivev1.ClusterDeploymentCondition{
-				Status: corev1.ConditionUnknown,
-				Type:   hivev1.UnreachableCondition,
-			})),
-			expectedUnreachable: true,
-		},
-		{
-			name:                "unreachable true",
-			cd:                  testcd.Build(withUnreachableCondition(corev1.ConditionTrue, probeTime)),
-			expectedUnreachable: true,
-			expectedLastCheck:   probeTime,
-		},
-		{
-			name:                "unreachable false",
-			cd:                  testcd.Build(withUnreachableCondition(corev1.ConditionFalse, probeTime)),
-			expectedUnreachable: false,
-			expectedLastCheck:   probeTime,
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			actualUnreachable, actualLastCheck := Unreachable(tc.cd)
-			assert.Equal(t, tc.expectedUnreachable, actualUnreachable, "unexpected unreachable")
-			assert.Equal(t, tc.expectedLastCheck, actualLastCheck, "unexpected last check")
-		})
-	}
-}
-
 func Test_builder_Build(t *testing.T) {
 	cases := []struct {
 		name         string
@@ -242,16 +192,6 @@ func setOverrideActive(cd *hivev1.ClusterDeployment) {
 		hivev1.ClusterDeploymentCondition{
 			Type:   hivev1.ActiveAPIURLOverrideCondition,
 			Status: corev1.ConditionTrue,
-		},
-	)
-}
-
-func withUnreachableCondition(status corev1.ConditionStatus, probeTime time.Time) testcd.Option {
-	return testcd.WithCondition(
-		hivev1.ClusterDeploymentCondition{
-			Type:          hivev1.UnreachableCondition,
-			Status:        status,
-			LastProbeTime: metav1.NewTime(probeTime),
 		},
 	)
 }

@@ -351,14 +351,22 @@ func (r *ReconcileMachinePool) Reconcile(ctx context.Context, request reconcile.
 }
 
 func (r *ReconcileMachinePool) reconcile(pool *hivev1.MachinePool, cd *hivev1.ClusterDeployment, logger log.FieldLogger) (reconcile.Result, error) {
-	remoteClusterAPIClient, unreachable, requeue := remoteclient.ConnectToRemoteCluster(
-		cd,
-		r.remoteClusterAPIClientBuilder(cd),
-		r.Client,
-		logger,
-	)
-	if unreachable {
-		return reconcile.Result{Requeue: requeue}, nil
+	// Check if cluster is marked as unreachable
+	if unreachable, _ := controllerutils.Unreachable(cd); unreachable {
+		logger.Debug("skipping cluster with unreachable condition")
+		return reconcile.Result{}, nil
+	}
+
+	// Connect to remote cluster
+	remoteClusterAPIClient, err := r.remoteClusterAPIClientBuilder(cd).BuildWithContext(context.Background())
+	if err != nil {
+		logger.WithError(err).Info("remote cluster is unreachable")
+		controllerutils.SetUnreachableCondition(cd, err)
+		if updateErr := r.Client.Status().Update(context.Background(), cd); updateErr != nil {
+			logger.WithError(updateErr).Log(controllerutils.LogLevel(updateErr), "could not update clusterdeployment with unreachable condition")
+			return reconcile.Result{Requeue: true}, nil
+		}
+		return reconcile.Result{}, nil
 	}
 
 	logger.Info("reconciling machine pool for cluster deployment")

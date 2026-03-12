@@ -36,7 +36,6 @@ import (
 	"github.com/openshift/hive/pkg/constants"
 	hivemetrics "github.com/openshift/hive/pkg/controller/metrics"
 	controllerutils "github.com/openshift/hive/pkg/controller/utils"
-	"github.com/openshift/hive/pkg/remoteclient"
 	"github.com/openshift/hive/pkg/resource"
 	k8slabels "github.com/openshift/hive/pkg/util/labels"
 )
@@ -434,7 +433,7 @@ func (r *ReconcileControlPlaneCerts) setCertsNotFoundCondition(cd *hivev1.Cluste
 // defaultControlPlaneDomain will attempt to return the domain/hostname for the secondary API URL
 // for the cluster based on the contents of the clusterDeployment's adminKubeConfig secret.
 func (r *ReconcileControlPlaneCerts) defaultControlPlaneDomain(cd *hivev1.ClusterDeployment) (string, error) {
-	apiurl, err := remoteclient.InitialURL(r.Client, cd)
+	apiurl, err := controllerutils.InitialURL(r.Client, cd)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to fetch initial API URL")
 	}

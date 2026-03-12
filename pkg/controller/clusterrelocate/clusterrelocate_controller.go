@@ -96,7 +96,7 @@ func Add(mgr manager.Manager) error {
 		clientCache: sharedCache,
 	}
 	r.remoteClusterAPIClientBuilder = func(secret *corev1.Secret, controllerName hivev1.ControllerName) remoteclient.Builder {
-		return remoteclient.NewBuilderFromKubeconfig(
+		return remoteclient.NewBuilderWithOptions(
 			remoteclient.WithKubeconfigSecret(secret),
 			remoteclient.WithControllerName(ControllerName),
 			remoteclient.WithCache(sharedCache),

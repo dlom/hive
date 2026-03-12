@@ -1619,7 +1619,7 @@ func (r *ReconcileClusterDeployment) setReqsMetConditionImageSetNotFound(cd *hiv
 // are unset.
 func (r *ReconcileClusterDeployment) setClusterStatusURLs(cd *hivev1.ClusterDeployment, cdLog log.FieldLogger) (reconcile.Result, error) {
 	updateCD := false
-	server, err := remoteclient.InitialURL(r.Client, cd)
+	server, err := controllerutils.InitialURL(r.Client, cd)
 	if err != nil {
 		cdLog.WithError(err).Error("could not get API URL from kubeconfig")
 		return reconcile.Result{}, err
@@ -1630,14 +1630,22 @@ func (r *ReconcileClusterDeployment) setClusterStatusURLs(cd *hivev1.ClusterDepl
 		updateCD = true
 	}
 
-	remoteClient, unreachable, requeue := remoteclient.ConnectToRemoteCluster(
-		cd,
-		r.remoteClusterAPIClientBuilder(cd),
-		r.Client,
-		cdLog,
-	)
-	if unreachable {
-		return reconcile.Result{Requeue: requeue}, nil
+	// Check if cluster is marked as unreachable
+	if unreachable, _ := controllerutils.Unreachable(cd); unreachable {
+		cdLog.Debug("skipping cluster with unreachable condition")
+		return reconcile.Result{}, nil
+	}
+
+	// Connect to remote cluster
+	remoteClient, err := r.remoteClusterAPIClientBuilder(cd).BuildWithContext(context.Background())
+	if err != nil {
+		cdLog.WithError(err).Info("remote cluster is unreachable")
+		controllerutils.SetUnreachableCondition(cd, err)
+		if updateErr := r.Client.Status().Update(context.Background(), cd); updateErr != nil {
+			cdLog.WithError(updateErr).Log(controllerutils.LogLevel(updateErr), "could not update clusterdeployment with unreachable condition")
+			return reconcile.Result{Requeue: true}, nil
+		}
+		return reconcile.Result{}, nil
 	}
 
 	var requeueAfter time.Duration
@@ -2906,14 +2914,20 @@ func (r *ReconcileClusterDeployment) discoverAzureResourceGroup(cd *hivev1.Clust
 	// This little lambda looks up the Infrastructure object in the remote cluster.
 	// It returns true iff it successfully set the ResourceGroupName, false otherwise.
 	if func() bool {
-		remoteClient, unreachable, requeue := remoteclient.ConnectToRemoteCluster(
-			cd,
-			r.remoteClusterAPIClientBuilder(cd),
-			r.Client,
-			log,
-		)
-		if unreachable || requeue || remoteClient == nil {
-			// ConnectToRemoteCluster already logged
+		// Check if cluster is marked as unreachable
+		if unreachable, _ := controllerutils.Unreachable(cd); unreachable {
+			log.Debug("skipping cluster with unreachable condition")
+			return false
+		}
+
+		// Connect to remote cluster
+		remoteClient, err := r.remoteClusterAPIClientBuilder(cd).BuildWithContext(context.Background())
+		if err != nil {
+			log.WithError(err).Info("remote cluster is unreachable")
+			controllerutils.SetUnreachableCondition(cd, err)
+			if updateErr := r.Client.Status().Update(context.Background(), cd); updateErr != nil {
+				log.WithError(updateErr).Log(controllerutils.LogLevel(updateErr), "could not update clusterdeployment with unreachable condition")
+			}
 			return false
 		}
 

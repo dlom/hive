@@ -339,7 +339,7 @@ func (r *ReconcileClusterSync) Reconcile(ctx context.Context, request reconcile.
 		return reconcile.Result{}, nil
 	}
 
-	if unreachable, _ := remoteclient.Unreachable(cd); unreachable {
+	if unreachable, _ := controllerutils.Unreachable(cd); unreachable {
 		logger.Debug("cluster is unreachable")
 		return reconcile.Result{}, nil
 	}

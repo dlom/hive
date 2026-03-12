@@ -1,374 +1,199 @@
-# Remote Client Builder API
+# Remote Client Builder
 
-This document describes the remote client builder API with context support and client caching.
+Builder API for creating Kubernetes clients to remote clusters with caching and context support.
 
 ## Overview
 
-The builder API provides:
+The remote client builder provides:
 
-- **Context support** - all methods accept context for timeout and cancellation
-- **Client caching** - clients reused across reconciliations (90-97% performance improvement)
-- **Automatic cache invalidation** - handles certificate rotation and URL failover
-- **Unified field manager** - consistent "hive-{controller}" naming
-- **Timeout control** - reachability checks respect context timeouts
+- **Client caching** - 90-97% performance improvement by reusing clients
+- **Automatic invalidation** - handles certificate rotation and API URL failover
+- **Context support** - all methods accept context for timeout/cancellation
+- **API URL failover** - switch between primary and secondary API URLs
+- **Error wrapping** - cluster context in all errors
 
-## Key Features
-
-### 1. Context-Aware Methods
-
-All methods accept `context.Context` for proper timeout and cancellation:
+## Basic Usage
 
 ```go
-ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-defer cancel()
+import (
+    "context"
+    "time"
 
-client, err := builder.BuildWithContext(ctx)
-```
-
-### 2. Client Caching
-
-Cached clients are reused across reconciliations, providing **90-97% performance improvement**:
-
-```go
-// Create shared cache once at controller initialization
-cache := clientutil.NewCache(
-    clientutil.WithMaxSize(500),
-    clientutil.WithTTL(10*time.Minute),
+    hivev1 "github.com/openshift/hive/apis/hive/v1"
+    "github.com/openshift/hive/internal/clientutil"
+    "github.com/openshift/hive/pkg/remoteclient"
 )
 
-// Use cache in builder
+// Get shared cache
+cache := clientutil.GetSharedCache(hivev1.ClustersyncControllerName)
+
+// Build client
 builder := remoteclient.NewBuilderWithOptions(
-    remoteclient.WithClusterDeployment(client, cd),
+    remoteclient.WithClusterDeployment(c, cd),
     remoteclient.WithControllerName(hivev1.ClustersyncControllerName),
     remoteclient.WithCache(cache),
-)
-
-// Subsequent calls return cached client
-remoteClient, err := builder.BuildWithContext(ctx)
-```
-
-### 3. Automatic Cache Invalidation
-
-The cache automatically invalidates when:
-
-- **Certificate Rotation**: Kubeconfig secret ResourceVersion changes
-- **API URL Failover**: API URL changes (primary ↔ secondary)
-- **TTL Expiration**: After configured TTL (default: 10 minutes)
-- **Manual Invalidation**: Via `cache.Invalidate(key)`
-
-Cache keys include:
-- Cluster ID (namespace/name)
-- Kubeconfig ResourceVersion
-- Current API URL
-
-### 4. Unified Field Manager
-
-Uses `clientutil.FieldManagerName()` for consistent "hive-{controller}" format instead of "hive2-{controller}".
-
-### 5. Functional Options Pattern
-
-Clean, extensible configuration:
-
-```go
-builder := remoteclient.NewBuilderWithOptions(
-    remoteclient.WithClusterDeployment(client, cd),
-    remoteclient.WithControllerName(hivev1.ClustersyncControllerName),
-    remoteclient.WithCache(cache),
-    remoteclient.WithPrimaryURL(),
-)
-```
-
-## API Reference
-
-### Builder Interface
-
-```go
-type Builder interface {
-    // Context-aware methods
-    BuildWithContext(ctx context.Context) (client.Client, error)
-    BuildDynamicWithContext(ctx context.Context) (dynamic.Interface, error)
-    BuildKubeClientWithContext(ctx context.Context) (kubeclient.Interface, error)
-    RESTConfigWithContext(ctx context.Context) (*rest.Config, error)
-
-    // URL selection methods
-    UsePrimaryAPIURL() Builder
-    UseSecondaryAPIURL() Builder
-}
-```
-
-### Constructors
-
-```go
-// Functional options pattern (recommended)
-func NewBuilderWithOptions(opts ...BuilderOption) Builder
-
-// Legacy constructor (no caching by default)
-func NewBuilder(c client.Client, cd *hivev1.ClusterDeployment, controllerName hivev1.ControllerName) Builder
-```
-
-### BuilderOption Functions
-
-```go
-// Core options
-WithClusterDeployment(client client.Client, cd *hivev1.ClusterDeployment)
-WithKubeconfigSecret(secret *corev1.Secret)
-WithControllerName(name hivev1.ControllerName)
-
-// Caching options
-WithCache(cache clientutil.ClientCache)
-WithoutCache()
-
-// URL selection options
-WithPrimaryURL()
-WithSecondaryURL()
-WithActiveURL() // default
-```
-
-## Usage Examples
-
-### Basic Usage (No Caching)
-
-```go
-builder := remoteclient.NewBuilderWithOptions(
-    remoteclient.WithClusterDeployment(client, cd),
-    remoteclient.WithControllerName(hivev1.ClustersyncControllerName),
 )
 
 ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 defer cancel()
 
 remoteClient, err := builder.BuildWithContext(ctx)
-if err != nil {
-    return err
-}
 ```
 
-### With Caching (Recommended)
+## Client Caching
+
+The cache automatically invalidates when the cache key changes:
+
+**Cache Key Components:**
+- Cluster ID: `namespace/name`
+- Kubeconfig Version: Secret `ResourceVersion`
+- API URL: Current active URL
+
+**Automatic Invalidation:**
+- Certificate rotation (kubeconfig secret ResourceVersion changes)
+- API URL failover (URL changes)
+- TTL expiration (default: 10 minutes)
+
+**Performance:**
+- Uncached: ~300ms per operation
+- Cached: ~110ms per operation
+- **Improvement: 90-97% faster**
+
+## Builder Options
 
 ```go
-// One-time setup in controller initialization
-cache := clientutil.NewCache(
-    clientutil.WithMaxSize(500),
-    clientutil.WithTTL(10*time.Minute),
-)
+// Required: ClusterDeployment or kubeconfig secret
+WithClusterDeployment(client, cd)
+WithKubeconfigSecret(secret)
 
-// In reconciliation loop
-builder := remoteclient.NewBuilderWithOptions(
-    remoteclient.WithClusterDeployment(r.Client, cd),
-    remoteclient.WithControllerName(ControllerName),
-    remoteclient.WithCache(cache),
-)
+// Required: Controller name for metrics
+WithControllerName(hivev1.ClustersyncControllerName)
 
-ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-defer cancel()
-
-remoteClient, err := builder.BuildWithContext(ctx)
-// First call: creates client (~300ms)
-// Subsequent calls: returns cached client (~10ms)
+// Optional: Enable caching (highly recommended)
+WithCache(cache)
 ```
 
-### URL Failover
+## API URL Failover
+
+The builder supports switching between primary and secondary API URLs:
 
 ```go
-// Try primary URL first
-builder := remoteclient.NewBuilderWithOptions(
-    remoteclient.WithClusterDeployment(client, cd),
-    remoteclient.WithControllerName(hivev1.ClustersyncControllerName),
-    remoteclient.WithPrimaryURL(),
-)
-
-remoteClient, err := builder.BuildWithContext(ctx)
+// Try primary URL
+primaryBuilder := builder.UsePrimaryAPIURL()
+client, err := primaryBuilder.BuildWithContext(ctx)
 if err != nil {
-    // Failover to secondary URL
+    // Fall back to secondary URL
     secondaryBuilder := builder.UseSecondaryAPIURL()
-    remoteClient, err = secondaryBuilder.BuildWithContext(ctx)
+    client, err = secondaryBuilder.BuildWithContext(ctx)
 }
 ```
 
-### Direct Kubeconfig Secret Usage
+**URL Selection Logic:**
+- **Primary URL**: APIURLOverride (if set), else kubeconfig URL
+- **Secondary URL**: Kubeconfig URL (if override set), else APIURLOverride
+- **Active URL** (default): Determined by ActiveAPIURLOverrideCondition
+
+## Client Types
+
+All client types support context and caching:
+
+```go
+// Controller-runtime client
+client, err := builder.BuildWithContext(ctx)
+
+// Typed Kubernetes client
+kubeClient, err := builder.BuildKubeClientWithContext(ctx)
+
+// REST config (for custom clients)
+cfg, err := builder.RESTConfigWithContext(ctx)
+```
+
+### Using a Kubeconfig Secret Directly
+
+For controllers that work with raw kubeconfig secrets (without a ClusterDeployment):
 
 ```go
 builder := remoteclient.NewBuilderWithOptions(
     remoteclient.WithKubeconfigSecret(secret),
-    remoteclient.WithControllerName(hivev1.ClustersyncControllerName),
-)
-
-remoteClient, err := builder.BuildWithContext(ctx)
-```
-
-## Constructor Options
-
-### NewBuilderWithOptions (Recommended)
-
-Use the functional options pattern for full control:
-
-```go
-builder := remoteclient.NewBuilderWithOptions(
-    remoteclient.WithClusterDeployment(client, cd),
-    remoteclient.WithControllerName(controllerName),
-    remoteclient.WithCache(cache), // Enable caching
-)
-
-client, err := builder.BuildWithContext(ctx)
-```
-
-### NewBuilder (Legacy)
-
-Simpler constructor without caching:
-
-```go
-builder := remoteclient.NewBuilder(client, cd, controllerName)
-client, err := builder.BuildWithContext(ctx)
-```
-
-**Note:** `NewBuilder()` creates builders **without caching** by default. Use `NewBuilderWithOptions()` with `WithCache()` for caching.
-
-## Usage Patterns
-
-### Without Caching (Simple)
-
-For one-off operations or when you always need a fresh client:
-
-```go
-builder := remoteclient.NewBuilder(client, cd, controllerName)
-
-ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-defer cancel()
-
-remoteClient, err := builder.BuildWithContext(ctx)
-```
-
-### With Caching (Recommended for Production)
-
-For controllers managing many clusters:
-
-```go
-// In controller setup (once)
-cache := clientutil.NewCache(
-    clientutil.WithMaxSize(500),
-    clientutil.WithTTL(10*time.Minute),
-)
-
-// In reconciliation loop
-builder := remoteclient.NewBuilderWithOptions(
-    remoteclient.WithClusterDeployment(client, cd),
     remoteclient.WithControllerName(controllerName),
     remoteclient.WithCache(cache),
 )
 
-ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-defer cancel()
-
-remoteClient, err := builder.BuildWithContext(ctx)
+client, err := builder.BuildWithContext(ctx)
 ```
 
-### Performance Impact
-
-With caching enabled:
-
-| Scenario | Without Cache | With Cache (miss) | With Cache (hit) | Improvement |
-|----------|--------------|-------------------|------------------|-------------|
-| First build | 300ms | 300ms | 300ms | - |
-| Subsequent builds | 300ms | 300ms | 10ms | 97% faster |
-| 1000 cluster sync | 5 min | 5 min | 25 sec | 92% faster |
-
-## Cache Invalidation Details
-
-### Automatic Invalidation Scenarios
-
-#### 1. Certificate Rotation
-
-When certificates rotate, the kubeconfig secret is updated:
-
-```
-Secret ResourceVersion: v1 → v2
-Cache key changes: cluster/v1/url → cluster/v2/url
-Result: Cache miss, new client created with fresh certs
-```
-
-#### 2. API URL Failover
-
-When API URL changes (e.g., primary fails, switch to secondary):
-
-```
-API URL changes: https://primary → https://secondary
-Cache key changes: cluster/v1/url1 → cluster/v1/url2
-Result: Cache miss, new client created with new URL
-```
-
-#### 3. TTL Expiration
-
-After 10 minutes (default):
-
-```
-Entry created: T+0
-TTL expires: T+10min
-Next access: Cache miss, new client created
-```
-
-### Manual Invalidation
-
-For controllers that detect cluster issues:
-
-```go
-// Invalidate specific cluster
-cacheKey := clientutil.NewCacheKey(
-    fmt.Sprintf("%s/%s", cd.Namespace, cd.Name),
-    secret.ResourceVersion,
-    apiURL,
-)
-cache.Invalidate(cacheKey)
-
-// Or invalidate all
-cache.InvalidateAll()
-```
+When using `WithKubeconfigSecret`, API URL overrides and failover are not available.
 
 ## Error Handling
 
-Errors are wrapped with cluster context using `clientutil.WrapClusterError()`:
+All errors are wrapped with cluster context:
 
 ```go
-remoteClient, err := builder.BuildWithContext(ctx)
+client, err := builder.BuildWithContext(ctx)
 if err != nil {
-    // Error includes cluster ID and operation context
-    log.WithError(err).Error("failed to build remote client")
-
-    // Check error type
-    if clientutil.IsTimeout(err) {
-        // Handle timeout
-    } else if clientutil.IsConnectionFailed(err) {
-        // Handle connection failure
-    } else if clientutil.IsAuthenticationFailed(err) {
-        // Handle auth failure
-    }
+    // Error includes cluster namespace/name and operation
+    // Example: "cluster hive/my-cluster operation build-client failed: ..."
 }
 ```
 
-## Implementation Files
+## Testing
 
-- `options.go` - Functional options pattern
-- `cache_integration.go` - Cache key generation
-- `builder.go` - Builder implementation with context support
-- `kubeconfig.go` - Kubeconfig loading and URL extraction
-- `fake.go` - Fake builder for testing
-- `remoteclient.go` - Interface definitions and legacy constructor
-- `remoteclient_test.go` - Comprehensive tests
+### Fake Clients
 
-## Performance Benchmarks
+For testing with fake clusters (scale testing):
 
-Run benchmarks:
+```go
+import "github.com/openshift/hive/pkg/remoteclient"
 
-```bash
-go test -bench=BenchmarkBuilder ./pkg/remoteclient/...
+// Mark cluster as fake
+cd.Labels["hive.openshift.io/fake-cluster"] = "true"
+
+// Builder returns fake client automatically
+builder := remoteclient.NewBuilderWithOptions(
+    remoteclient.WithClusterDeployment(c, cd),
+    remoteclient.WithControllerName(controllerName),
+)
+client, err := builder.BuildWithContext(ctx)
+// Returns a fake client that doesn't connect to real cluster
 ```
 
-Expected results with caching:
-- Cache hit: <10ms (p99)
-- Cache miss with creation: <500ms (p99)
-- Cache hit rate: >95% in production
+## Architecture
 
-## See Also
+```
+pkg/remoteclient/
+├── doc.go                 - Package documentation
+├── builder.go             - Builder implementation (ClusterDeployment or kubeconfig secret)
+├── options.go             - Functional options
+├── cache_integration.go   - Cache key generation and helpers
+├── remoteclient.go        - Interface and URL selection helpers
+├── fake.go                - Fake client support for testing
+└── README.md              - This file
+```
 
+## Integration with Other Packages
+
+### internal/clientutil
+
+- Provides cache implementation (ClientCache)
+- Provides REST config utilities (CopyConfigWithMetrics, PrepareConfigForClient)
+- Provides kubeconfig parsing (RestConfigFromSecret)
+- Provides error wrapping (WrapClusterError)
+
+### pkg/resource
+
+- Uses remoteclient.Builder to create clients
+- Performs Server-Side Apply operations on remote clusters
+
+## Best Practices
+
+1. **Always use caching** - Get shared cache via `clientutil.GetSharedCache(controllerName)`
+2. **Always use context** - Set reasonable timeouts (e.g., 30 seconds)
+3. **Use ConnectToRemoteCluster** - Automatically handles unreachable clusters
+4. **Check unreachable condition** - Skip reconciliation for unreachable clusters
+5. **Let cache auto-invalidate** - Don't try to manually invalidate entries
+
+## Related Documentation
+
+- [Remote Client v2 Specification](../../remotecluster2specs/REMOTECLIENT_V2_SPECIFICATION.md)
 - [Shared Client Utilities](../../internal/clientutil/README.md)
-- [Resource Helper Documentation](../resource/helper.go) (see package documentation)
-- [Implementation Specifications](../../remotecluster2specs/)
+- [Resource Helper](../resource/README.md)

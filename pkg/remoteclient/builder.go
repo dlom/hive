@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	kubeclient "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -12,10 +13,15 @@ import (
 
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	"github.com/openshift/hive/internal/clientutil"
-	"github.com/openshift/hive/pkg/util/scheme"
+	utilscheme "github.com/openshift/hive/pkg/util/scheme"
 )
 
+// ============================================================================
+// Builder Implementation
+// ============================================================================
+
 // builder implements Builder with caching and context support.
+// Supports both ClusterDeployment (with URL overrides) and direct kubeconfig secrets.
 type builder struct {
 	config builderConfig
 }
@@ -47,6 +53,10 @@ func NewBuilderWithOptions(opts ...BuilderOption) Builder {
 	return &builder{config: cfg}
 }
 
+// ============================================================================
+// Builder Interface Methods
+// ============================================================================
+
 // BuildWithContext creates a controller-runtime client with context support.
 // If caching is enabled, this will return a cached client on subsequent calls
 // with the same cache key (cluster ID + kubeconfig version + API URL).
@@ -76,12 +86,12 @@ func (b *builder) BuildKubeClientWithContext(ctx context.Context) (kubeclient.In
 		return nil, err
 	}
 
-	client, err := kubeclient.NewForConfig(cfg)
+	kubeClient, err := kubeclient.NewForConfig(cfg)
 	if err != nil {
 		return nil, b.wrapError(err, "build-kube-client")
 	}
 
-	return client, nil
+	return kubeClient, nil
 }
 
 // RESTConfigWithContext returns the REST config with context support.
@@ -98,22 +108,18 @@ func (b *builder) RESTConfigWithContext(ctx context.Context) (*rest.Config, erro
 		return nil, b.wrapError(err, "parse-kubeconfig")
 	}
 
-	// Get the kubeconfig URL from the config (before any overrides)
 	kubeconfigURL := cfg.Host
 
 	// Apply metrics wrapper immutably
 	cfg = clientutil.CopyConfigWithMetrics(cfg, b.config.controllerName, true)
 
-	// Determine which API URL to use
-	apiURL := b.getAPIURL(kubeconfigURL)
-
-	// Apply URL and IP overrides if needed
-	var ipOverride string
+	// Only apply URL and IP overrides if we have a ClusterDeployment
+	// When using a direct kubeconfig secret, use it as-is
 	if b.config.cd != nil {
-		ipOverride = b.config.cd.Spec.ControlPlaneConfig.APIServerIPOverride
+		apiURL := b.getAPIURL(kubeconfigURL)
+		ipOverride := b.config.cd.Spec.ControlPlaneConfig.APIServerIPOverride
+		cfg = clientutil.PrepareConfigForClient(cfg, apiURL, ipOverride)
 	}
-
-	cfg = clientutil.PrepareConfigForClient(cfg, apiURL, ipOverride)
 
 	return cfg, nil
 }
@@ -134,6 +140,10 @@ func (b *builder) UseSecondaryAPIURL() Builder {
 	return &builder{config: newConfig}
 }
 
+// ============================================================================
+// Internal Methods
+// ============================================================================
+
 // buildClientUncached creates a new client without using the cache.
 func (b *builder) buildClientUncached(ctx context.Context) (client.Client, error) {
 	cfg, err := b.RESTConfigWithContext(ctx)
@@ -148,7 +158,7 @@ func (b *builder) buildClientUncached(ctx context.Context) (client.Client, error
 
 	// Create controller-runtime client
 	c, err := client.New(cfg, client.Options{
-		Scheme: scheme.GetScheme(),
+		Scheme: utilscheme.GetScheme(),
 	})
 	if err != nil {
 		return nil, b.wrapError(err, "create-client")
@@ -228,19 +238,32 @@ func (b *builder) wrapError(err error, operation string) error {
 		return nil
 	}
 
-	clusterID := "unknown"
+	var clusterID string
+	var gvk schema.GroupVersionKind
+	var namespace string
+	var name string
+
 	if b.config.cd != nil {
 		clusterID = fmt.Sprintf("%s/%s", b.config.cd.Namespace, b.config.cd.Name)
+		gvk = hivev1.SchemeGroupVersion.WithKind("ClusterDeployment")
+		namespace = b.config.cd.Namespace
+		name = b.config.cd.Name
 	} else if b.config.kubeconfigSecret != nil {
 		clusterID = fmt.Sprintf("%s/%s", b.config.kubeconfigSecret.Namespace, b.config.kubeconfigSecret.Name)
+		gvk = corev1.SchemeGroupVersion.WithKind("Secret")
+		namespace = b.config.kubeconfigSecret.Namespace
+		name = b.config.kubeconfigSecret.Name
+	} else {
+		clusterID = "unknown"
+		gvk = hivev1.SchemeGroupVersion.WithKind("Unknown")
 	}
 
 	return clientutil.WrapClusterError(
 		err,
 		clusterID,
 		operation,
-		hivev1.SchemeGroupVersion.WithKind("ClusterDeployment"),
-		"", // namespace
-		"", // name
+		gvk,
+		namespace,
+		name,
 	)
 }

@@ -164,7 +164,7 @@ func (r *ReconcileClusterState) Reconcile(ctx context.Context, request reconcile
 	}
 
 	// If the cluster is unreachable, do not reconcile.
-	if unreachable, _ := remoteclient.Unreachable(cd); unreachable {
+	if unreachable, _ := controllerutils.Unreachable(cd); unreachable {
 		logger.Debug("skipping cluster with unreachable condition")
 		return reconcile.Result{}, nil
 	}
@@ -211,14 +211,22 @@ func (r *ReconcileClusterState) Reconcile(ctx context.Context, request reconcile
 
 	clusterOperators := &configv1.ClusterOperatorList{}
 
-	remoteClient, unreachable, requeue := remoteclient.ConnectToRemoteCluster(
-		cd,
-		r.remoteClusterAPIClientBuilder(cd),
-		r.Client,
-		logger,
-	)
-	if unreachable {
-		return reconcile.Result{Requeue: requeue}, nil
+	// Check if cluster is marked as unreachable
+	if unreachable, _ := controllerutils.Unreachable(cd); unreachable {
+		logger.Debug("skipping cluster with unreachable condition")
+		return reconcile.Result{}, nil
+	}
+
+	// Connect to remote cluster
+	remoteClient, err := r.remoteClusterAPIClientBuilder(cd).BuildWithContext(context.Background())
+	if err != nil {
+		logger.WithError(err).Info("remote cluster is unreachable")
+		controllerutils.SetUnreachableCondition(cd, err)
+		if updateErr := r.Client.Status().Update(context.Background(), cd); updateErr != nil {
+			logger.WithError(updateErr).Log(controllerutils.LogLevel(updateErr), "could not update clusterdeployment with unreachable condition")
+			return reconcile.Result{Requeue: true}, nil
+		}
+		return reconcile.Result{}, nil
 	}
 
 	err = remoteClient.List(context.TODO(), clusterOperators)

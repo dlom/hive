@@ -11,6 +11,10 @@ import (
 	"github.com/openshift/hive/internal/clientutil"
 )
 
+// ============================================================================
+// Cache Integration - Cache key generation and URL selection helpers
+// ============================================================================
+
 // generateCacheKey creates a cache key for a ClusterDeployment.
 // The key includes:
 // - Cluster identifier (namespace/name)
