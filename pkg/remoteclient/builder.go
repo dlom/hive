@@ -136,6 +136,22 @@ func (b *builder) RESTConfigWithContext(ctx context.Context) (*rest.Config, erro
 	return cfg, nil
 }
 
+// UsePrimaryAPIURL returns a new builder configured to use the primary API URL.
+// The builder is immutable - this returns a new instance.
+func (b *builder) UsePrimaryAPIURL() Builder {
+	newConfig := b.config
+	newConfig.urlSelection = primaryURL
+	return &builder{config: newConfig}
+}
+
+// UseSecondaryAPIURL returns a new builder configured to use the secondary API URL.
+// The builder is immutable - this returns a new instance.
+func (b *builder) UseSecondaryAPIURL() Builder {
+	newConfig := b.config
+	newConfig.urlSelection = secondaryURL
+	return &builder{config: newConfig}
+}
+
 // buildClientUncached creates a new client without using the cache.
 func (b *builder) buildClientUncached(ctx context.Context) (client.Client, error) {
 	cfg, err := b.RESTConfigWithContext(ctx)
@@ -243,20 +259,4 @@ func (b *builder) wrapError(err error, operation string) error {
 		"", // namespace
 		"", // name
 	)
-}
-
-// UsePrimaryAPIURL returns a new builder configured to use the primary API URL.
-// The builder is immutable - this returns a new instance.
-func (b *builder) UsePrimaryAPIURL() Builder {
-	newConfig := b.config
-	newConfig.urlSelection = primaryURL
-	return &builder{config: newConfig}
-}
-
-// UseSecondaryAPIURL returns a new builder configured to use the secondary API URL.
-// The builder is immutable - this returns a new instance.
-func (b *builder) UseSecondaryAPIURL() Builder {
-	newConfig := b.config
-	newConfig.urlSelection = secondaryURL
-	return &builder{config: newConfig}
 }

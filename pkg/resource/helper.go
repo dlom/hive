@@ -158,3 +158,36 @@ func NewHelper(logger log.FieldLogger, opts ...HelperOption) (Helper, error) {
 		controllerName: cfg.controllerName,
 	}, nil
 }
+
+// wrapError wraps an error with cluster and resource context.
+// This is used by all operation methods (Apply, Patch, Delete) to provide consistent error handling.
+func (h *helperImpl) wrapError(err error, operation string, gvk schema.GroupVersionKind, namespace, name string) error {
+	if err == nil {
+		return nil
+	}
+
+	return clientutil.WrapClusterError(
+		err,
+		"remote-cluster", // ClusterID would come from context in real usage
+		operation,
+		gvk,
+		namespace,
+		name,
+	)
+}
+
+// recordOperation records operation metrics.
+// This is used by all operation methods to track performance and success rates.
+func (h *helperImpl) recordOperation(operation string, gvk schema.GroupVersionKind, result string, duration float64) {
+	if h.controllerName == "" {
+		return
+	}
+
+	clientutil.RecordOperation(
+		string(h.controllerName),
+		operation,
+		gvk.String(),
+		result,
+		duration,
+	)
+}
