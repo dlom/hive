@@ -218,6 +218,48 @@ spec:
                           type: string
                       type: object
                   type: object
+                clientCacheConfig:
+                  description: |-
+                    ClientCacheConfig configures the shared remote cluster client cache used across all controllers.
+                    The cache stores authenticated clients for remote clusters, dramatically improving performance
+                    by eliminating the need to recreate clients for every operation. Tuning these settings allows
+                    operators to balance memory usage vs cache hit rates based on their cluster scale.
+                  properties:
+                    maxSize:
+                      description: |-
+                        MaxSize is the maximum number of remote cluster clients to cache.
+                        When the cache is full, least recently used clients are evicted.
+
+                        Recommended sizing:
+                          - Small deployments (< 100 clusters): 100-200
+                          - Medium deployments (100-500 clusters): 500-1000
+                          - Large deployments (> 500 clusters): 1000-2000
+
+                        Higher values increase memory usage but improve cache hit rates.
+                        Default: 500
+                      format: int32
+                      maximum: 10000
+                      minimum: 10
+                      type: integer
+                    ttl:
+                      description: |-
+                        TTL (Time To Live) is the maximum duration a client will remain in the cache
+                        before being evicted, even if it's still actively used.
+
+                        This prevents caching stale clients after certificate rotations or configuration
+                        changes. The TTL should be shorter than your cluster certificate rotation period.
+
+                        Recommended values:
+                          - Standard: 10m (for 24h cert rotation)
+                          - Conservative: 5m (for frequent rotations)
+                          - Aggressive: 30m (for infrequent rotations, better cache hits)
+
+                        Default: 10m
+                        This is a Duration value; see https://pkg.go.dev/time#ParseDuration for accepted formats.
+                        Note: due to discrepancies in validation vs parsing, we use a Pattern instead of `Format=duration`.
+                      pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
+                      type: string
+                  type: object
                 clusterVersionPollInterval:
                   description: |-
                     ClusterVersionPollInterval is a string duration indicating how much time must pass before checking
