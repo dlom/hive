@@ -1,6 +1,7 @@
 package remoteclient
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/pkg/errors"
@@ -115,4 +116,52 @@ func (b *fakeBuilder) UseSecondaryAPIURL() Builder {
 
 func (b *fakeBuilder) RESTConfig() (*rest.Config, error) {
 	return nil, errors.New("RESTConfig not implemented for fake cluster client builder")
+}
+
+// V2 context-aware methods for BuilderV2 interface compliance
+
+// BuildWithContext implements BuilderV2.BuildWithContext().
+// Context is respected for cancellation but not used for I/O (fake client is local).
+func (b *fakeBuilder) BuildWithContext(ctx context.Context) (client.Client, error) {
+	// Check if context is already canceled
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	return b.Build()
+}
+
+// BuildDynamicWithContext implements BuilderV2.BuildDynamicWithContext().
+func (b *fakeBuilder) BuildDynamicWithContext(ctx context.Context) (dynamic.Interface, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	return b.BuildDynamic()
+}
+
+// BuildKubeClientWithContext implements BuilderV2.BuildKubeClientWithContext().
+func (b *fakeBuilder) BuildKubeClientWithContext(ctx context.Context) (kubeclient.Interface, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	return b.BuildKubeClient()
+}
+
+// RESTConfigWithContext implements BuilderV2.RESTConfigWithContext().
+func (b *fakeBuilder) RESTConfigWithContext(ctx context.Context) (*rest.Config, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	return b.RESTConfig()
 }

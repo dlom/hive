@@ -54,6 +54,10 @@ type Builder interface {
 // The controllerName is needed for metrics.
 // If the ClusterDeployment carries the fake cluster annotation, a fake client will be returned populated with
 // runtime.Objects we need to query for in all our controllers.
+//
+// NOTE: This function now returns a BuilderV2 (which implements Builder) to provide access to context-aware methods.
+// Existing code using Builder interface continues to work unchanged.
+// To use caching and context support, use NewBuilderV2() instead.
 func NewBuilder(c client.Client, cd *hivev1.ClusterDeployment, controllerName hivev1.ControllerName) Builder {
 	if utils.IsFakeCluster(cd) {
 		clusterVersion := ""
@@ -65,12 +69,13 @@ func NewBuilder(c client.Client, cd *hivev1.ClusterDeployment, controllerName hi
 			clusterVersion: clusterVersion,
 		}
 	}
-	return &builder{
-		c:              c,
-		cd:             cd,
-		controllerName: controllerName,
-		urlToUse:       activeURL,
-	}
+
+	// Return v2 builder without caching (preserves v1 behavior)
+	return NewBuilderV2(
+		WithClusterDeployment(c, cd),
+		WithControllerName(controllerName),
+		WithoutCache(), // v1 behavior: no caching
+	)
 }
 
 // ConnectToRemoteCluster connects to a remote cluster using the specified builder.

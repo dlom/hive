@@ -1,0 +1,155 @@
+package resource
+
+import (
+	"context"
+	"time"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+// Delete deletes the specified resource with clear deletion semantics.
+// This fixes the v1 deletion timing bug where DeletionInProgressV2 was ambiguous.
+//
+// Returns clear states:
+//   - DeletedV2: Successfully deleted or already gone (idempotent success)
+//   - NotFoundV2: Resource never existed
+//   - DeletionInProgressV2: Has deletionTimestamp but still exists (finalizers)
+//
+// With WithWait() option, polls until fully deleted or context timeout.
+func (h *helperV2) Delete(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, opts ...DeleteOption) (DeleteResultV2, error) {
+	startTime := time.Now()
+
+	// Parse options
+	options := deleteOptions{}
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	// Create object for deletion
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(gvk)
+	obj.SetNamespace(namespace)
+	obj.SetName(name)
+
+	objectKey := client.ObjectKey{Namespace: namespace, Name: name}
+
+	// Check current state
+	currentObj := &unstructured.Unstructured{}
+	currentObj.SetGroupVersionKind(gvk)
+
+	if err := h.client.Get(ctx, objectKey, currentObj); err != nil {
+		if apierrors.IsNotFound(err) {
+			// Resource never existed or already deleted
+			h.recordOperation("delete", gvk, "success", time.Since(startTime).Seconds())
+			return DeleteResultV2{
+				State: NotFoundV2,
+			}, nil
+		}
+		return DeleteResultV2{}, h.wrapError(err, "get-for-delete", gvk, namespace, name)
+	}
+
+	// Check if already deleting
+	if currentObj.GetDeletionTimestamp() != nil {
+		if options.wait {
+			// Wait for deletion to complete
+			return h.waitForDeletion(ctx, gvk, objectKey, currentObj.GetDeletionTimestamp())
+		}
+
+		// Already deleting, return DeletionInProgressV2
+		h.recordOperation("delete", gvk, "deletion-in-progress", time.Since(startTime).Seconds())
+		return DeleteResultV2{
+			State:             DeletionInProgressV2,
+			DeletionTimestamp: currentObj.GetDeletionTimestamp(),
+			Object:            currentObj,
+		}, nil
+	}
+
+	// Prepare delete options
+	deleteOpts := []client.DeleteOption{}
+
+	if options.gracePeriodSeconds != nil {
+		deleteOpts = append(deleteOpts, &client.DeleteOptions{
+			GracePeriodSeconds: options.gracePeriodSeconds,
+		})
+	}
+
+	if options.propagationPolicy != nil {
+		deleteOpts = append(deleteOpts, &client.DeleteOptions{
+			PropagationPolicy: options.propagationPolicy,
+		})
+	}
+
+	// Delete the resource
+	if err := h.client.Delete(ctx, obj, deleteOpts...); err != nil {
+		if apierrors.IsNotFound(err) {
+			// Already deleted (race condition)
+			h.recordOperation("delete", gvk, "success", time.Since(startTime).Seconds())
+			return DeleteResultV2{
+				State: DeletedV2,
+			}, nil
+		}
+
+		h.recordOperation("delete", gvk, "failure", time.Since(startTime).Seconds())
+		return DeleteResultV2{}, h.wrapError(err, "delete", gvk, namespace, name)
+	}
+
+	// Wait for deletion if requested
+	if options.wait {
+		return h.waitForDeletion(ctx, gvk, objectKey, nil)
+	}
+
+	// Delete request succeeded
+	h.recordOperation("delete", gvk, "success", time.Since(startTime).Seconds())
+	return DeleteResultV2{
+		State: DeletedV2,
+	}, nil
+}
+
+// waitForDeletion polls until the resource is fully deleted or context times out.
+func (h *helperV2) waitForDeletion(
+	ctx context.Context,
+	gvk schema.GroupVersionKind,
+	objectKey client.ObjectKey,
+	deletionTimestamp *metav1.Time,
+) (DeleteResultV2, error) {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			// Context timeout or cancellation
+			return DeleteResultV2{
+				State:             DeletionInProgressV2,
+				DeletionTimestamp: deletionTimestamp,
+			}, ctx.Err()
+
+		case <-ticker.C:
+			// Check if resource still exists
+			obj := &unstructured.Unstructured{}
+			obj.SetGroupVersionKind(gvk)
+
+			if err := h.client.Get(ctx, objectKey, obj); err != nil {
+				if apierrors.IsNotFound(err) {
+					// Successfully deleted
+					return DeleteResultV2{
+						State: DeletedV2,
+					}, nil
+				}
+				// Unexpected error
+				return DeleteResultV2{}, h.wrapError(err, "poll-deletion", gvk, objectKey.Namespace, objectKey.Name)
+			}
+
+			// Still exists, update deletion timestamp if we see it
+			if obj.GetDeletionTimestamp() != nil {
+				deletionTimestamp = obj.GetDeletionTimestamp()
+			}
+
+			// Continue polling
+		}
+	}
+}
