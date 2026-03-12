@@ -186,72 +186,7 @@ func TestCache_TTL_Expiration(t *testing.T) {
 	}
 }
 
-// TestCache_Invalidate tests manual cache invalidation.
-func TestCache_Invalidate(t *testing.T) {
-	cache := NewCache(WithMaxSize(10), WithTTL(1*time.Hour))
-	ctx := context.Background()
 
-	key := NewCacheKey("test-ns/test-cluster", "v1", "https://api.test.com:6443")
-
-	factoryCalls := 0
-	factory := func(ctx context.Context) (client.Client, error) {
-		factoryCalls++
-		return fake.NewClientBuilder().Build(), nil
-	}
-
-	// Create entry
-	cache.Get(ctx, key, factory)
-
-	// Invalidate it
-	cache.Invalidate(key)
-
-	stats := cache.Stats()
-	if stats.Evictions != 1 {
-		t.Errorf("Stats.Evictions = %d, want 1", stats.Evictions)
-	}
-	if stats.Size != 0 {
-		t.Errorf("Stats.Size = %d, want 0", stats.Size)
-	}
-
-	// Next access should recreate
-	cache.Get(ctx, key, factory)
-
-	if factoryCalls != 2 {
-		t.Errorf("factory called %d times, want 2", factoryCalls)
-	}
-}
-
-// TestCache_InvalidateAll tests clearing the entire cache.
-func TestCache_InvalidateAll(t *testing.T) {
-	cache := NewCache(WithMaxSize(10), WithTTL(1*time.Hour))
-	ctx := context.Background()
-
-	factory := func(ctx context.Context) (client.Client, error) {
-		return fake.NewClientBuilder().Build(), nil
-	}
-
-	// Add multiple entries
-	for i := 0; i < 5; i++ {
-		key := NewCacheKey("test-ns/test-cluster", fmt.Sprintf("v%d", i), "https://api.test.com:6443")
-		cache.Get(ctx, key, factory)
-	}
-
-	stats := cache.Stats()
-	if stats.Size != 5 {
-		t.Errorf("Stats.Size = %d, want 5", stats.Size)
-	}
-
-	// Clear cache
-	cache.InvalidateAll()
-
-	stats = cache.Stats()
-	if stats.Size != 0 {
-		t.Errorf("Stats.Size = %d, want 0 after InvalidateAll", stats.Size)
-	}
-	if stats.Evictions != 5 {
-		t.Errorf("Stats.Evictions = %d, want 5", stats.Evictions)
-	}
-}
 
 // TestCache_ConcurrentAccess tests thread-safety with concurrent goroutines.
 func TestCache_ConcurrentAccess(t *testing.T) {

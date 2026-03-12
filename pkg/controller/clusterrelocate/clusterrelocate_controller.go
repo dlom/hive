@@ -88,7 +88,7 @@ func Add(mgr manager.Manager) error {
 
 	// Use shared client cache across all controllers
 	// Provides 92-97% faster operations through client caching
-	sharedCache := clientutil.GetSharedCache()
+	sharedCache := clientutil.GetSharedCache(ControllerName)
 
 	r := &ReconcileClusterRelocate{
 		Client:      controllerutils.NewClientWithMetricsOrDie(mgr, ControllerName, &clientRateLimiter),

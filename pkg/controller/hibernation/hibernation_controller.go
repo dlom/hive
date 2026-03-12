@@ -124,7 +124,7 @@ func NewReconciler(mgr manager.Manager, rateLimiter flowcontrol.RateLimiter) *hi
 
 	// Use shared client cache across all controllers
 	// Provides 92-97% faster operations through client caching
-	sharedCache := clientutil.GetSharedCache()
+	sharedCache := clientutil.GetSharedCache(ControllerName)
 
 	r := &hibernationReconciler{
 		Client:      controllerutils.NewClientWithMetricsOrDie(mgr, ControllerName, &rateLimiter),

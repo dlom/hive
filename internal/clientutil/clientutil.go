@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	"github.com/openshift/hive/internal/clientutil/cache"
 	"github.com/openshift/hive/internal/clientutil/config"
 	"github.com/openshift/hive/internal/clientutil/errors"
@@ -92,14 +93,22 @@ func InitializeSharedCache(opts ...CacheOption) {
 	sharedCache = NewCache(opts...)
 }
 
-// GetSharedCache returns the shared client cache instance.
+// GetSharedCache returns a controller-specific view of the shared client cache.
+// The returned cache automatically tags all metrics with the controller name.
+//
 // If no cache has been initialized, creates a default cache with:
 //   - Max size: 500 clients
 //   - TTL: 10 minutes
 //
 // All controllers should use this shared cache for optimal memory usage
 // and cache hit rates across the entire application.
-func GetSharedCache() ClientCache {
+func GetSharedCache(controllerName hivev1.ControllerName) ClientCache {
+	realCache := getSharedCacheInstance()
+	return cache.NewControllerCache(realCache, string(controllerName))
+}
+
+// getSharedCacheInstance returns the underlying shared cache instance.
+func getSharedCacheInstance() ClientCache {
 	sharedCacheOnce.Do(func() {
 		sharedCacheMu.Lock()
 		defer sharedCacheMu.Unlock()

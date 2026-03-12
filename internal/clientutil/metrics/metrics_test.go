@@ -11,11 +11,11 @@ func TestRecordCacheHit(t *testing.T) {
 	// Reset metrics
 	cacheHitsTotal.Reset()
 
-	RecordCacheHit("remoteclient", "clustersync")
+	RecordCacheHit("clustersync")
 
 	// Verify metric was incremented
 	metric := &dto.Metric{}
-	if err := cacheHitsTotal.WithLabelValues("remoteclient", "clustersync").Write(metric); err != nil {
+	if err := cacheHitsTotal.WithLabelValues("clustersync").Write(metric); err != nil {
 		t.Fatalf("Failed to write metric: %v", err)
 	}
 
@@ -32,11 +32,11 @@ func TestRecordCacheMiss(t *testing.T) {
 	// Reset metrics
 	cacheMissesTotal.Reset()
 
-	RecordCacheMiss("resource", "clusterdeployment")
+	RecordCacheMiss("clusterdeployment")
 
 	// Verify metric was incremented
 	metric := &dto.Metric{}
-	if err := cacheMissesTotal.WithLabelValues("resource", "clusterdeployment").Write(metric); err != nil {
+	if err := cacheMissesTotal.WithLabelValues("clusterdeployment").Write(metric); err != nil {
 		t.Fatalf("Failed to write metric: %v", err)
 	}
 
@@ -53,11 +53,11 @@ func TestRecordCacheSize(t *testing.T) {
 	// Reset metrics
 	cacheSizeGauge.Reset()
 
-	RecordCacheSize("remoteclient", "clustersync", 42)
+	RecordCacheSize("clustersync", 42)
 
 	// Verify metric was set
 	metric := &dto.Metric{}
-	if err := cacheSizeGauge.WithLabelValues("remoteclient", "clustersync").Write(metric); err != nil {
+	if err := cacheSizeGauge.WithLabelValues("clustersync").Write(metric); err != nil {
 		t.Fatalf("Failed to write metric: %v", err)
 	}
 
@@ -74,11 +74,11 @@ func TestRecordEviction(t *testing.T) {
 	// Reset metrics
 	cacheEvictionsTotal.Reset()
 
-	RecordEviction("remoteclient", "clustersync", "lru")
+	RecordEviction("clustersync", "lru")
 
 	// Verify metric was incremented
 	metric := &dto.Metric{}
-	if err := cacheEvictionsTotal.WithLabelValues("remoteclient", "clustersync", "lru").Write(metric); err != nil {
+	if err := cacheEvictionsTotal.WithLabelValues("clustersync", "lru").Write(metric); err != nil {
 		t.Fatalf("Failed to write metric: %v", err)
 	}
 
@@ -150,18 +150,18 @@ func TestMetricsRegistered(t *testing.T) {
 
 func TestEvictionReasons(t *testing.T) {
 	// Test all eviction reasons
-	reasons := []string{"lru", "ttl", "health", "manual"}
+	reasons := []string{"lru", "ttl"}
 
 	cacheEvictionsTotal.Reset()
 
 	for _, reason := range reasons {
-		RecordEviction("test", "test", reason)
+		RecordEviction("test", reason)
 	}
 
 	// Verify each reason was recorded
 	for _, reason := range reasons {
 		metric := &dto.Metric{}
-		if err := cacheEvictionsTotal.WithLabelValues("test", "test", reason).Write(metric); err != nil {
+		if err := cacheEvictionsTotal.WithLabelValues("test", reason).Write(metric); err != nil {
 			t.Fatalf("Failed to write metric for reason %s: %v", reason, err)
 		}
 

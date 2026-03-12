@@ -51,29 +51,7 @@ func (b *kubeconfigBuilder) BuildWithContext(ctx context.Context) (client.Client
 		return b.buildClientUncached(ctx)
 	}
 
-	// Get cache stats before operation to detect hit/miss
-	statsBefore := b.config.cache.Stats()
-
-	client, err := b.config.cache.Get(ctx, cacheKey, factory)
-	if err != nil {
-		return nil, err
-	}
-
-	// Get cache stats after operation and record metrics
-	statsAfter := b.config.cache.Stats()
-	controllerName := string(b.config.controllerName)
-
-	// Check if this was a cache hit or miss by comparing stats
-	if statsAfter.Hits > statsBefore.Hits {
-		clientutil.RecordCacheHit("remoteclient", controllerName)
-	} else if statsAfter.Misses > statsBefore.Misses {
-		clientutil.RecordCacheMiss("remoteclient", controllerName)
-	}
-
-	// Record current cache size
-	clientutil.RecordCacheSize("remoteclient", controllerName, statsAfter.Size)
-
-	return client, nil
+	return b.config.cache.Get(ctx, cacheKey, factory)
 }
 
 // BuildKubeClientWithContext creates a typed Kubernetes client with context support.

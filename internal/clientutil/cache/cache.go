@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/openshift/hive/internal/clientutil/metrics"
 )
 
 // ClientFactory is a function that creates a new client.
@@ -13,17 +15,14 @@ import (
 type ClientFactory func(ctx context.Context) (client.Client, error)
 
 // ClientCache provides thread-safe caching of Kubernetes clients with LRU eviction and TTL expiration.
+//
+// The cache automatically invalidates entries when CacheKey changes (kubeconfig updates, API URL failover).
+// Manual invalidation is not needed and not supported - the cache is self-managing based on key changes.
 type ClientCache interface {
 	// Get retrieves a client from the cache or creates a new one using the factory.
 	// If the client exists in cache and is not expired, it is returned immediately.
 	// Otherwise, the factory is called to create a new client, which is then cached.
 	Get(ctx context.Context, key CacheKey, factory ClientFactory) (client.Client, error)
-
-	// Invalidate removes a specific cache entry.
-	Invalidate(key CacheKey)
-
-	// InvalidateAll clears the entire cache.
-	InvalidateAll()
 
 	// Stats returns current cache statistics.
 	Stats() CacheStats
@@ -104,6 +103,7 @@ func NewCache(opts ...CacheOption) ClientCache {
 // Get retrieves a client from the cache or creates a new one.
 func (c *lruCache) Get(ctx context.Context, key CacheKey, factory ClientFactory) (client.Client, error) {
 	keyStr := key.String()
+	controllerName := getControllerName(ctx)
 
 	// Try to get from cache first (read lock)
 	c.mu.RLock()
@@ -115,7 +115,7 @@ func (c *lruCache) Get(ctx context.Context, key CacheKey, factory ClientFactory)
 		if time.Since(entry.created) > c.ttl {
 			// Entry expired, remove it and create new one
 			c.mu.Lock()
-			c.evictLocked(keyStr, "ttl")
+			c.evictLocked(keyStr, "ttl", controllerName)
 			c.mu.Unlock()
 			exists = false
 		} else {
@@ -124,7 +124,13 @@ func (c *lruCache) Get(ctx context.Context, key CacheKey, factory ClientFactory)
 			entry.lastAccess = time.Now()
 			c.updateAccessOrderLocked(keyStr)
 			c.hits++
+			cacheSize := len(c.entries)
 			c.mu.Unlock()
+
+			// Record cache hit metrics
+			metrics.RecordCacheHit(controllerName)
+			metrics.RecordCacheSize(controllerName, cacheSize)
+
 			return entry.client, nil
 		}
 	}
@@ -133,6 +139,9 @@ func (c *lruCache) Get(ctx context.Context, key CacheKey, factory ClientFactory)
 	c.mu.Lock()
 	c.misses++
 	c.mu.Unlock()
+
+	// Record cache miss metrics
+	metrics.RecordCacheMiss(controllerName)
 
 	// Create client outside of lock to avoid blocking cache during network I/O
 	newClient, err := factory(ctx)
@@ -154,7 +163,7 @@ func (c *lruCache) Get(ctx context.Context, key CacheKey, factory ClientFactory)
 
 	// Check if we need to evict an entry first
 	if len(c.entries) >= c.maxSize {
-		c.evictOldestLocked()
+		c.evictOldestLocked(controllerName)
 	}
 
 	// Add new entry
@@ -165,27 +174,10 @@ func (c *lruCache) Get(ctx context.Context, key CacheKey, factory ClientFactory)
 	}
 	c.accessOrder = append(c.accessOrder, keyStr)
 
+	// Record cache size after adding new entry
+	metrics.RecordCacheSize(controllerName, len(c.entries))
+
 	return newClient, nil
-}
-
-// Invalidate removes a specific cache entry.
-func (c *lruCache) Invalidate(key CacheKey) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	keyStr := key.String()
-	c.evictLocked(keyStr, "manual")
-}
-
-// InvalidateAll clears the entire cache.
-func (c *lruCache) InvalidateAll() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	count := len(c.entries)
-	c.entries = make(map[string]*cacheEntry)
-	c.accessOrder = make([]string, 0)
-	c.evictions += int64(count)
 }
 
 // Stats returns current cache statistics.
@@ -203,25 +195,28 @@ func (c *lruCache) Stats() CacheStats {
 
 // evictOldestLocked evicts the least recently used entry.
 // Must be called with lock held.
-func (c *lruCache) evictOldestLocked() {
+func (c *lruCache) evictOldestLocked(controllerName string) {
 	if len(c.accessOrder) == 0 {
 		return
 	}
 
 	// First entry in accessOrder is the oldest
 	oldestKey := c.accessOrder[0]
-	c.evictLocked(oldestKey, "lru")
+	c.evictLocked(oldestKey, "lru", controllerName)
 }
 
 // evictLocked removes an entry from the cache.
 // Must be called with lock held.
-func (c *lruCache) evictLocked(key string, reason string) {
+func (c *lruCache) evictLocked(key string, reason string, controllerName string) {
 	if _, exists := c.entries[key]; !exists {
 		return
 	}
 
 	delete(c.entries, key)
 	c.evictions++
+
+	// Record eviction metrics
+	metrics.RecordEviction(controllerName, reason)
 
 	// Remove from access order
 	for i, k := range c.accessOrder {

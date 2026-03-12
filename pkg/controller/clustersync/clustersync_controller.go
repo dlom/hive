@@ -147,7 +147,7 @@ func NewReconciler(mgr manager.Manager, rateLimiter flowcontrol.RateLimiter) (*R
 
 	// Use shared client cache across all controllers
 	// Provides 92-97% faster operations through client caching
-	sharedCache := clientutil.GetSharedCache()
+	sharedCache := clientutil.GetSharedCache(ControllerName)
 
 	return &ReconcileClusterSync{
 		Client:                c,

@@ -38,7 +38,7 @@ var (
 			Name: "hive_client_cache_hits_total",
 			Help: "Total number of client cache hits.",
 		},
-		[]string{"package", "controller"},
+		[]string{"controller"},
 	)
 
 	cacheMissesTotal = prometheus.NewCounterVec(
@@ -46,7 +46,7 @@ var (
 			Name: "hive_client_cache_misses_total",
 			Help: "Total number of client cache misses.",
 		},
-		[]string{"package", "controller"},
+		[]string{"controller"},
 	)
 
 	cacheSizeGauge = prometheus.NewGaugeVec(
@@ -54,7 +54,7 @@ var (
 			Name: "hive_client_cache_size",
 			Help: "Current size of the client cache.",
 		},
-		[]string{"package", "controller"},
+		[]string{"controller"},
 	)
 
 	cacheEvictionsTotal = prometheus.NewCounterVec(
@@ -62,7 +62,7 @@ var (
 			Name: "hive_client_cache_evictions_total",
 			Help: "Total number of cache evictions.",
 		},
-		[]string{"package", "controller", "reason"},
+		[]string{"controller", "reason"},
 	)
 
 	// Operation Metrics (new - for resource operations)
@@ -99,25 +99,25 @@ func init() {
 	)
 }
 
-// RecordCacheHit records a cache hit for the given package and controller.
-func RecordCacheHit(pkg, controller string) {
-	cacheHitsTotal.WithLabelValues(pkg, controller).Inc()
+// RecordCacheHit records a cache hit for the given controller.
+func RecordCacheHit(controller string) {
+	cacheHitsTotal.WithLabelValues(controller).Inc()
 }
 
-// RecordCacheMiss records a cache miss for the given package and controller.
-func RecordCacheMiss(pkg, controller string) {
-	cacheMissesTotal.WithLabelValues(pkg, controller).Inc()
+// RecordCacheMiss records a cache miss for the given controller.
+func RecordCacheMiss(controller string) {
+	cacheMissesTotal.WithLabelValues(controller).Inc()
 }
 
 // RecordCacheSize records the current cache size.
-func RecordCacheSize(pkg, controller string, size int) {
-	cacheSizeGauge.WithLabelValues(pkg, controller).Set(float64(size))
+func RecordCacheSize(controller string, size int) {
+	cacheSizeGauge.WithLabelValues(controller).Set(float64(size))
 }
 
 // RecordEviction records a cache eviction with the given reason.
-// Reason should be one of: "lru", "ttl", "health", "manual"
-func RecordEviction(pkg, controller, reason string) {
-	cacheEvictionsTotal.WithLabelValues(pkg, controller, reason).Inc()
+// Reason should be one of: "lru", "ttl"
+func RecordEviction(controller, reason string) {
+	cacheEvictionsTotal.WithLabelValues(controller, reason).Inc()
 }
 
 // RecordOperation records a resource operation with duration and result.
