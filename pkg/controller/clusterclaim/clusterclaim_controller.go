@@ -25,7 +25,6 @@ import (
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	hivemetrics "github.com/openshift/hive/pkg/controller/metrics"
 	controllerutils "github.com/openshift/hive/pkg/controller/utils"
-	"github.com/openshift/hive/pkg/resource"
 )
 
 const (
@@ -384,7 +383,6 @@ func (r *ReconcileClusterClaim) cleanupResources(claim *hivev1.ClusterClaim, log
 	logger = logger.WithField("cluster", clusterName)
 
 	var cdGone, rolebindingGone, roleGone bool
-	var err error
 
 	cd := &hivev1.ClusterDeployment{}
 	switch err := r.Get(context.Background(), client.ObjectKey{Namespace: clusterName, Name: clusterName}, cd); {

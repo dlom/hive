@@ -21,7 +21,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
-	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/client-go/util/flowcontrol"
 	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -800,98 +799,6 @@ func referencesToSecrets(syncSet CommonSyncSet) []hiveintv1alpha1.SyncResourceRe
 		})
 	}
 	return references
-}
-
-func (r *ReconcileClusterSync) applyResource(
-	resourceIndex int,
-	resource *unstructured.Unstructured,
-	reference hiveintv1alpha1.SyncResourceReference,
-	applyFn func(obj []byte) (resource.ApplyResult, error),
-	applyFnMetricsLabel string,
-	logger log.FieldLogger,
-) (returnErr error, requeue bool) {
-	logger = logger.WithField("resourceIndex", resourceIndex).
-		WithField("resourceNamespace", reference.Namespace).
-		WithField("resourceName", reference.Name).
-		WithField("resourceAPIVersion", reference.APIVersion).
-		WithField("resourceKind", reference.Kind)
-	logger.Debug("applying resource")
-	if err := applyToTargetCluster(resource, applyFnMetricsLabel, applyFn, logger); err != nil {
-		return errors.Wrapf(err, "failed to apply resource %d", resourceIndex), true
-	}
-	return nil, false
-}
-
-func (r *ReconcileClusterSync) applySecret(
-	syncSet CommonSyncSet,
-	secretIndex int,
-	secretMapping hivev1.SecretMapping,
-	reference hiveintv1alpha1.SyncResourceReference,
-	applyFn func(obj []byte) (resource.ApplyResult, error),
-	applyFnMetricsLabel string,
-	logger log.FieldLogger,
-) (returnErr error, requeue bool) {
-	logger = logger.WithField("secretIndex", secretIndex).
-		WithField("secretNamespace", reference.Namespace).
-		WithField("secretName", reference.Name)
-	syncSetNamespace := syncSet.AsMetaObject().GetNamespace()
-	srcNamespace := secretMapping.SourceRef.Namespace
-	if srcNamespace == "" {
-		// The namespace of the source secret is required for SelectorSyncSets.
-		if syncSetNamespace == "" {
-			logger.Warn("namespace must be specified for source secret")
-			return fmt.Errorf("source namespace missing for secret %d", secretIndex), false
-		}
-		// Use the namespace of the SyncSet if the namespace of the source secret is omitted.
-		srcNamespace = syncSetNamespace
-	} else {
-		// If the namespace of the source secret is specified, then it must match the namespace of the SyncSet.
-		if syncSetNamespace != "" && syncSetNamespace != srcNamespace {
-			logger.Warn("source secret must be in same namespace as SyncSet")
-			return fmt.Errorf("source in wrong namespace for secret %d", secretIndex), false
-		}
-	}
-	secret := &corev1.Secret{}
-	if err := r.Get(context.Background(), types.NamespacedName{Namespace: srcNamespace, Name: secretMapping.SourceRef.Name}, secret); err != nil {
-		logger.WithError(err).Log(controllerutils.LogLevel(err), "cannot read secret")
-		return errors.Wrapf(err, "failed to read secret %d", secretIndex), true
-	}
-	// Clear out the fields of the metadata which are specific to the cluster to which the secret belongs.
-	secret.ObjectMeta = metav1.ObjectMeta{
-		Namespace:   secretMapping.TargetRef.Namespace,
-		Name:        secretMapping.TargetRef.Name,
-		Annotations: secret.Annotations,
-		Labels:      secret.Labels,
-	}
-	logger.Debug("applying secret")
-	if err := applyToTargetCluster(secret, applyFnMetricsLabel, applyFn, logger); err != nil {
-		return errors.Wrapf(err, "failed to apply secret %d", secretIndex), true
-	}
-	return nil, false
-}
-
-func (r *ReconcileClusterSync) applyPatch(
-	patchIndex int,
-	patch hivev1.SyncObjectPatch,
-	resourceHelper resource.Helper,
-	logger log.FieldLogger,
-) (returnErr error, requeue bool) {
-	logger = logger.WithField("patchIndex", patchIndex).
-		WithField("patchNamespace", patch.Namespace).
-		WithField("patchName", patch.Name).
-		WithField("patchAPIVersion", patch.APIVersion).
-		WithField("patchKind", patch.Kind)
-	logger.Debug("applying patch")
-	if err := resourceHelper.Patch(
-		types.NamespacedName{Namespace: patch.Namespace, Name: patch.Name},
-		patch.Kind,
-		patch.APIVersion,
-		[]byte(patch.Patch),
-		patch.PatchType,
-	); err != nil {
-		return errors.Wrapf(err, "failed to apply patch %d", patchIndex), true
-	}
-	return nil, false
 }
 
 // V2 functions using Server-Side Apply with structured results

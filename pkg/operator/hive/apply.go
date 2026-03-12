@@ -163,8 +163,12 @@ func deleteAssetBytesWithNSOverride(h resource.HelperV2, assetBytes []byte, name
 
 func deleteRuntimeObjectWithNSOverride(h resource.HelperV2, requiredObj runtime.Object, namespaceOverride string, hiveconfig *hivev1.HiveConfig) error {
 	objA, _ := meta.Accessor(requiredObj)
-	objT, _ := meta.TypeAccessor(requiredObj)
-	if err := h.Delete(objT.GetAPIVersion(), objT.GetKind(), namespaceOverride, objA.GetName()); err != nil {
+
+	// Get GVK from the runtime object
+	gvk := requiredObj.GetObjectKind().GroupVersionKind()
+
+	_, err := h.Delete(context.TODO(), gvk, namespaceOverride, objA.GetName())
+	if err != nil {
 		return errors.Wrapf(err, "unable to delete asset")
 	}
 	return nil

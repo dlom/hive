@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -68,7 +69,6 @@ import (
 	"github.com/openshift/hive/pkg/creds"
 	"github.com/openshift/hive/pkg/gcpclient"
 	"github.com/openshift/hive/pkg/ibmclient"
-	"github.com/openshift/hive/pkg/resource"
 	k8slabels "github.com/openshift/hive/pkg/util/labels"
 	"github.com/openshift/hive/pkg/util/scheme"
 	yamlutils "github.com/openshift/hive/pkg/util/yaml"
@@ -1754,8 +1754,25 @@ func (m *InstallManager) cleanupAdminPasswordSecret(provisionName, provisionName
 
 // deleteAnyExistingObject will look for any object that exists that matches the passed in 'obj' and will delete it if it exists
 func (m *InstallManager) deleteAnyExistingObject(namespacedName types.NamespacedName, obj hivev1.MetaRuntimeObject) error {
-	_, err := resource.DeleteAnyExistingObject(m.DynamicClient, namespacedName, obj, m.log)
-	return err
+	logger := m.log.WithField("object", namespacedName)
+	switch err := m.DynamicClient.Get(context.Background(), namespacedName, obj); {
+	case apierrors.IsNotFound(err):
+		logger.Debug("object does not exist")
+		return nil
+	case err != nil:
+		logger.WithError(err).Error("error getting object")
+		return errors.Wrap(err, "error getting object")
+	}
+	if obj.GetDeletionTimestamp() != nil {
+		logger.Debug("object has already been deleted")
+		return nil
+	}
+	logger.Info("deleting existing object")
+	if err := m.DynamicClient.Delete(context.Background(), obj); err != nil {
+		logger.WithError(err).Error("error deleting object")
+		return errors.Wrap(err, "error deleting object")
+	}
+	return nil
 }
 
 func waitForProvisioningStage(m *InstallManager) error {

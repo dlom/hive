@@ -8,6 +8,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	apitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 
@@ -223,7 +224,13 @@ func (r *ReconcileHiveConfig) deployStatefulSet(c ssCfg, hLog log.FieldLogger, h
 			//     invalid: spec: Forbidden: updates to statefulset spec for fields other than 'replicas', 'template', and 'updateStrategy' are forbidden"
 			// The only fix is to delete the statefulset and have the apply below recreate it.
 			hLog.Infof("deleting the existing %s statefulset because spec has changed", c.name)
-			err := h.Delete(existingStatefulSet.APIVersion, existingStatefulSet.Kind, existingStatefulSet.Namespace, existingStatefulSet.Name)
+
+			gvk := schema.GroupVersionKind{
+				Group:   "apps",
+				Version: "v1",
+				Kind:    "StatefulSet",
+			}
+			_, err := h.Delete(context.TODO(), gvk, existingStatefulSet.Namespace, existingStatefulSet.Name)
 			if err != nil {
 				hLog.WithError(err).Error("error deleting statefulset")
 			}

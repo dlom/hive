@@ -20,6 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -438,15 +439,11 @@ func (r *ReconcileHiveConfig) Reconcile(ctx context.Context, request reconcile.R
 			Labels: map[string]string{targetNamespaceLabel: "true"},
 		},
 	}
-	if _, err := h.CreateOrUpdateRuntimeObject(hiveNamespace, r.scheme); err != nil {
-		if apierrors.IsAlreadyExists(err) {
-			hLog.WithField("hiveNS", hiveNSName).Debug("target namespace already exists")
-		} else {
-			hLog.WithError(err).Error("error creating hive target namespace")
-			instance.Status.Conditions = SetHiveConfigCondition(instance.Status.Conditions, hivev1.HiveReadyCondition, corev1.ConditionFalse, "ErrorCreatingHiveNamespace", err.Error())
-			r.updateHiveConfigStatus(origHiveConfig, instance, hLog, false)
-			return reconcile.Result{}, err
-		}
+	if _, err := h.Apply(context.TODO(), hiveNamespace); err != nil {
+		hLog.WithError(err).Error("error creating hive target namespace")
+		instance.Status.Conditions = SetHiveConfigCondition(instance.Status.Conditions, hivev1.HiveReadyCondition, corev1.ConditionFalse, "ErrorCreatingHiveNamespace", err.Error())
+		r.updateHiveConfigStatus(origHiveConfig, instance, hLog, false)
+		return reconcile.Result{}, err
 	} else {
 		hLog.WithField("hiveNS", hiveNSName).Info("target namespace created")
 	}
@@ -616,10 +613,13 @@ func (r *ReconcileHiveConfig) Reconcile(ctx context.Context, request reconcile.R
 	// accepting the fact that we might be leaking namespaces.
 	for _, ns := range namespacesToClean {
 		hLog.Infof("Unlabeling former target namespace %s", ns)
-		if err := h.Patch(
-			types.NamespacedName{Name: ns}, "Namespace", "v1",
-			[]byte(fmt.Sprintf(`{"metadata": {"labels": {"%s": null}}}`, targetNamespaceLabel)), "",
-		); err != nil {
+		gvk := schema.GroupVersionKind{
+			Group:   "",
+			Version: "v1",
+			Kind:    "Namespace",
+		}
+		patch := []byte(fmt.Sprintf(`{"metadata": {"labels": {"%s": null}}}`, targetNamespaceLabel))
+		if _, err := h.PatchWithObject(context.TODO(), gvk, "", ns, patch); err != nil {
 			hLog.WithError(err).Errorf("error unlabeling former target namespace %s", ns)
 			return reconcile.Result{}, err
 		}
