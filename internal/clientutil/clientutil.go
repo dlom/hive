@@ -32,9 +32,6 @@ type (
 	// CacheKey uniquely identifies a cached client.
 	CacheKey = cache.CacheKey
 
-	// CacheStats contains cache performance metrics.
-	CacheStats = cache.CacheStats
-
 	// CacheOption configures cache behavior.
 	CacheOption = cache.CacheOption
 )

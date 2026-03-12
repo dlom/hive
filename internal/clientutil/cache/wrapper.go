@@ -33,11 +33,6 @@ func (c *controllerCache) Get(ctx context.Context, key CacheKey, factory ClientF
 	return c.cache.Get(ctx, key, factory)
 }
 
-// Stats returns current cache statistics.
-func (c *controllerCache) Stats() CacheStats {
-	return c.cache.Stats()
-}
-
 // controllerNameKey is the context key for controller name.
 type controllerNameKey struct{}
 

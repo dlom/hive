@@ -18,22 +18,13 @@ type ClientFactory func(ctx context.Context) (client.Client, error)
 //
 // The cache automatically invalidates entries when CacheKey changes (kubeconfig updates, API URL failover).
 // Manual invalidation is not needed and not supported - the cache is self-managing based on key changes.
+//
+// Cache performance is monitored via Prometheus metrics automatically - no external stats access needed.
 type ClientCache interface {
 	// Get retrieves a client from the cache or creates a new one using the factory.
 	// If the client exists in cache and is not expired, it is returned immediately.
 	// Otherwise, the factory is called to create a new client, which is then cached.
 	Get(ctx context.Context, key CacheKey, factory ClientFactory) (client.Client, error)
-
-	// Stats returns current cache statistics.
-	Stats() CacheStats
-}
-
-// CacheStats contains cache performance metrics.
-type CacheStats struct {
-	Hits      int64 // Number of cache hits
-	Misses    int64 // Number of cache misses
-	Evictions int64 // Number of entries evicted
-	Size      int   // Current number of entries
 }
 
 // cacheEntry represents a single cached client with metadata.
@@ -178,19 +169,6 @@ func (c *lruCache) Get(ctx context.Context, key CacheKey, factory ClientFactory)
 	metrics.RecordCacheSize(controllerName, len(c.entries))
 
 	return newClient, nil
-}
-
-// Stats returns current cache statistics.
-func (c *lruCache) Stats() CacheStats {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	return CacheStats{
-		Hits:      c.hits,
-		Misses:    c.misses,
-		Evictions: c.evictions,
-		Size:      len(c.entries),
-	}
 }
 
 // evictOldestLocked evicts the least recently used entry.

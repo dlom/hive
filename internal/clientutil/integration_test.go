@@ -76,15 +76,6 @@ func TestIntegration_CacheWithConfigUtils(t *testing.T) {
 	if factoryCalls != 1 {
 		t.Errorf("Factory calls = %d, want 1 (should not be called on cache hit)", factoryCalls)
 	}
-
-	// Verify cache stats
-	stats := cache.Stats()
-	if stats.Hits != 1 {
-		t.Errorf("Stats.Hits = %d, want 1", stats.Hits)
-	}
-	if stats.Misses != 1 {
-		t.Errorf("Stats.Misses = %d, want 1", stats.Misses)
-	}
 }
 
 // TestIntegration_FieldManagerConsistency tests field manager naming consistency.
@@ -114,7 +105,9 @@ func TestIntegration_CacheInvalidationOnConfigChange(t *testing.T) {
 	)
 
 	ctx := context.Background()
+	factoryCalls := 0
 	factory := func(ctx context.Context) (client.Client, error) {
+		factoryCalls++
 		return fake.NewClientBuilder().Build(), nil
 	}
 
@@ -140,9 +133,8 @@ func TestIntegration_CacheInvalidationOnConfigChange(t *testing.T) {
 		t.Error("Expected different clients after kubeconfig version change")
 	}
 
-	stats := cache.Stats()
-	if stats.Misses != 2 {
-		t.Errorf("Stats.Misses = %d, want 2 (version change should cause cache miss)", stats.Misses)
+	if factoryCalls != 2 {
+		t.Errorf("Factory calls = %d, want 2 (version change should cause cache miss)", factoryCalls)
 	}
 
 	// Simulate API URL failover
@@ -157,9 +149,8 @@ func TestIntegration_CacheInvalidationOnConfigChange(t *testing.T) {
 		t.Error("Expected different clients after API URL change")
 	}
 
-	stats = cache.Stats()
-	if stats.Misses != 3 {
-		t.Errorf("Stats.Misses = %d, want 3 (URL change should cause cache miss)", stats.Misses)
+	if factoryCalls != 3 {
+		t.Errorf("Factory calls = %d, want 3 (URL change should cause cache miss)", factoryCalls)
 	}
 }
 
@@ -269,12 +260,6 @@ func TestIntegration_EndToEnd(t *testing.T) {
 	fieldManager := clientutil.FieldManagerName(hivev1.ClustersyncControllerName)
 	if fieldManager != "hive-clustersync" {
 		t.Errorf("Field manager = %q, want %q", fieldManager, "hive-clustersync")
-	}
-
-	// 7. Verify cache stats
-	stats := cache.Stats()
-	if stats.Size != 1 {
-		t.Errorf("Cache size = %d, want 1", stats.Size)
 	}
 
 	t.Log("End-to-end integration test passed successfully")

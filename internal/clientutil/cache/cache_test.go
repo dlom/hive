@@ -49,18 +49,6 @@ func TestCache_Get_Hit(t *testing.T) {
 	if factoryCalls != 1 {
 		t.Errorf("factory called %d times, want 1 (should not be called on cache hit)", factoryCalls)
 	}
-
-	// Verify stats
-	stats := cache.Stats()
-	if stats.Hits != 1 {
-		t.Errorf("Stats.Hits = %d, want 1", stats.Hits)
-	}
-	if stats.Misses != 1 {
-		t.Errorf("Stats.Misses = %d, want 1", stats.Misses)
-	}
-	if stats.Size != 1 {
-		t.Errorf("Stats.Size = %d, want 1", stats.Size)
-	}
 }
 
 // TestCache_Get_Miss tests that cache misses create new clients.
@@ -94,14 +82,6 @@ func TestCache_Get_Miss(t *testing.T) {
 	if factoryCalls != 2 {
 		t.Errorf("factory called %d times, want 2", factoryCalls)
 	}
-
-	stats := cache.Stats()
-	if stats.Misses != 2 {
-		t.Errorf("Stats.Misses = %d, want 2", stats.Misses)
-	}
-	if stats.Size != 2 {
-		t.Errorf("Stats.Size = %d, want 2", stats.Size)
-	}
 }
 
 // TestCache_LRU_Eviction tests that LRU eviction works correctly.
@@ -109,7 +89,9 @@ func TestCache_LRU_Eviction(t *testing.T) {
 	cache := NewCache(WithMaxSize(3), WithTTL(1*time.Hour))
 	ctx := context.Background()
 
+	factoryCalls := 0
 	factory := func(ctx context.Context) (client.Client, error) {
+		factoryCalls++
 		return fake.NewClientBuilder().Build(), nil
 	}
 
@@ -129,21 +111,11 @@ func TestCache_LRU_Eviction(t *testing.T) {
 	key4 := NewCacheKey("test-ns/cluster4", "v1", "https://api4.test.com:6443")
 	cache.Get(ctx, key4, factory)
 
-	// Verify key2 was evicted
-	stats := cache.Stats()
-	if stats.Evictions != 1 {
-		t.Errorf("Stats.Evictions = %d, want 1", stats.Evictions)
-	}
-	if stats.Size != 3 {
-		t.Errorf("Stats.Size = %d, want 3", stats.Size)
-	}
-
 	// Accessing key2 should be a miss (it was evicted)
-	missCountBefore := stats.Misses
+	factoryCallsBefore := factoryCalls
 	cache.Get(ctx, key2, factory)
-	statsAfter := cache.Stats()
-	if statsAfter.Misses != missCountBefore+1 {
-		t.Error("Expected cache miss for evicted entry")
+	if factoryCalls != factoryCallsBefore+1 {
+		t.Error("Expected cache miss for evicted entry (factory should be called)")
 	}
 }
 
@@ -178,11 +150,6 @@ func TestCache_TTL_Expiration(t *testing.T) {
 
 	if factoryCalls != 2 {
 		t.Errorf("factory called %d times, want 2 (once for initial, once after TTL)", factoryCalls)
-	}
-
-	stats := cache.Stats()
-	if stats.Evictions != 1 {
-		t.Errorf("Stats.Evictions = %d, want 1 (for TTL expiration)", stats.Evictions)
 	}
 }
 
@@ -227,19 +194,7 @@ func TestCache_ConcurrentAccess(t *testing.T) {
 
 	wg.Wait()
 
-	stats := cache.Stats()
-	totalOperations := int64(numGoroutines * numOperationsPerGoroutine)
-
-	t.Logf("Total operations: %d", totalOperations)
 	t.Logf("Factory calls: %d", factoryCalls)
-	t.Logf("Cache hits: %d", stats.Hits)
-	t.Logf("Cache misses: %d", stats.Misses)
-	t.Logf("Cache size: %d", stats.Size)
-
-	// Verify hits + misses = total operations
-	if stats.Hits+stats.Misses != totalOperations {
-		t.Errorf("Hits(%d) + Misses(%d) != TotalOperations(%d)", stats.Hits, stats.Misses, totalOperations)
-	}
 
 	// Verify factory was called for each unique key, not for every operation
 	// With 20 unique keys and 50 concurrent goroutines, factory should be called ~20 times
@@ -258,7 +213,9 @@ func TestCache_FactoryError(t *testing.T) {
 	key := NewCacheKey("test-ns/test-cluster", "v1", "https://api.test.com:6443")
 
 	expectedErr := fmt.Errorf("factory error")
+	factoryCalls := 0
 	factory := func(ctx context.Context) (client.Client, error) {
+		factoryCalls++
 		return nil, expectedErr
 	}
 
@@ -267,10 +224,10 @@ func TestCache_FactoryError(t *testing.T) {
 		t.Errorf("Get() error = %v, want %v", err, expectedErr)
 	}
 
-	// Error should not be cached
-	stats := cache.Stats()
-	if stats.Size != 0 {
-		t.Errorf("Stats.Size = %d, want 0 (errors should not be cached)", stats.Size)
+	// Error should not be cached - verify by calling again and seeing factory called twice
+	cache.Get(ctx, key, factory)
+	if factoryCalls != 2 {
+		t.Errorf("Factory called %d times, want 2 (errors should not be cached)", factoryCalls)
 	}
 }
 
