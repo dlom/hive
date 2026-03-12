@@ -72,4 +72,3 @@ func WithCache(cache clientutil.ClientCache) BuilderOption {
 		cfg.useCache = true
 	}
 }
-

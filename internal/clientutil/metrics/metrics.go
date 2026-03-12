@@ -1,3 +1,11 @@
+// Package metrics provides HTTP transport metrics for Kubernetes client requests.
+//
+// This package instruments REST config transports to automatically track all HTTP requests
+// made by Kubernetes clients, labeled by controller name and whether the target is a remote
+// cluster. Metrics are recorded for request counts, durations, and cancellations.
+//
+// The metrics are automatically applied via config.CopyConfigWithMetrics() and do not require
+// manual instrumentation in controllers.
 package metrics
 
 import (
@@ -44,17 +52,17 @@ func init() {
 	)
 }
 
-// RecordRequest records a Kubernetes client request.
-func RecordRequest(controller, method, resource, remote, status string) {
+// recordRequest records a Kubernetes client request.
+func recordRequest(controller, method, resource, remote, status string) {
 	metricKubeClientRequests.WithLabelValues(controller, method, resource, remote, status).Inc()
 }
 
-// RecordRequestDuration records the duration of a Kubernetes client request.
-func RecordRequestDuration(controller, method, resource, remote, status string, duration float64) {
+// recordRequestDuration records the duration of a Kubernetes client request.
+func recordRequestDuration(controller, method, resource, remote, status string, duration float64) {
 	metricKubeClientRequestSeconds.WithLabelValues(controller, method, resource, remote, status).Observe(duration)
 }
 
-// RecordRequestCancelled records a cancelled Kubernetes client request.
-func RecordRequestCancelled(controller, method, resource, remote string) {
+// recordRequestCancelled records a cancelled Kubernetes client request.
+func recordRequestCancelled(controller, method, resource, remote string) {
 	metricKubeClientRequestsCancelled.WithLabelValues(controller, method, resource, remote).Inc()
 }

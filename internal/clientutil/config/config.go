@@ -19,10 +19,10 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	machnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
-	machnet "k8s.io/apimachinery/pkg/util/net"
 
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	"github.com/openshift/hive/internal/clientutil/metrics"

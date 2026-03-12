@@ -1,7 +1,22 @@
+// Package clientutil provides shared infrastructure for Kubernetes client management.
+//
+// This package contains utilities for:
+//   - Client caching with LRU eviction and TTL expiration (cache subpackage)
+//   - REST config preparation with metrics and overrides (config subpackage)
+//   - Error wrapping with cluster context (errors subpackage)
+//   - Field manager naming conventions (fieldmanager subpackage)
+//   - HTTP transport metrics (metrics subpackage)
+//
+// The main clientutil package re-exports commonly used types and functions from
+// subpackages for convenient access. Controllers should import clientutil rather
+// than reaching into subpackages directly.
+//
+// # Shared Cache
+//
+// The shared cache (GetSharedCache) is used exclusively for remote cluster clients
+// via pkg/remoteclient.Builder. It provides automatic invalidation on kubeconfig
+// changes and optimal memory usage across all controllers.
 package clientutil
-
-// This file re-exports commonly used types and functions from subpackages
-// for convenient access.
 
 import (
 	"sync"
@@ -20,7 +35,9 @@ var (
 	sharedCacheOnce sync.Once
 )
 
-// Cache types and functions
+// ============================================================================
+// Cache - Client caching with LRU eviction and TTL
+// ============================================================================
 type (
 	// ClientCache provides thread-safe caching of Kubernetes clients.
 	ClientCache = cache.ClientCache
@@ -41,39 +58,73 @@ var NewCache = cache.NewCache
 // NewCacheKey creates a cache key from components.
 var NewCacheKey = cache.NewCacheKey
 
-// Cache configuration options
 var (
+	// WithMaxSize sets the maximum number of cached clients (default: 500).
 	WithMaxSize = cache.WithMaxSize
-	WithTTL     = cache.WithTTL
+
+	// WithTTL sets the time-to-live for cache entries (default: 10 minutes).
+	WithTTL = cache.WithTTL
 )
 
-// Error types and functions
+// ============================================================================
+// Errors - Cluster-context error wrapping
+// ============================================================================
 type (
 	// ClusterError wraps errors with cluster context.
 	ClusterError = errors.ClusterError
 )
 
-// Error wrapping
 var (
+	// WrapClusterError wraps errors with cluster and operation context.
 	WrapClusterError = errors.WrapClusterError
 )
 
-// Field manager functions
+// ============================================================================
+// Field Manager - Naming conventions for Server-Side Apply
+// ============================================================================
+
 var (
+	// FieldManagerName returns the unified field manager name for a controller.
+	// Format: "hive-{controller}"
 	FieldManagerName = fieldmanager.FieldManagerName
 )
 
-// Config utilities
+// ============================================================================
+// Config - REST config preparation and kubeconfig parsing
+// ============================================================================
+
 var (
-	CopyConfigWithMetrics  = config.CopyConfigWithMetrics
+	// CopyConfigWithMetrics returns a config copy with HTTP metrics wrapper.
+	CopyConfigWithMetrics = config.CopyConfigWithMetrics
+
+	// PrepareConfigForClient applies URL and IP overrides to a config.
 	PrepareConfigForClient = config.PrepareConfigForClient
-	RestConfigFromSecret   = config.RestConfigFromSecret
-	ValidateKubeconfig     = config.ValidateKubeconfig
+
+	// RestConfigFromSecret parses a kubeconfig secret into a REST config.
+	RestConfigFromSecret = config.RestConfigFromSecret
+
+	// ValidateKubeconfig validates kubeconfig data for security issues (HIVE-2485).
+	ValidateKubeconfig = config.ValidateKubeconfig
 )
 
-// InitializeSharedCache creates the shared client cache used across all controllers.
-// This should be called once during application startup (e.g., in main.go).
-// If not called, GetSharedCache() will create a default cache on first use.
+// ============================================================================
+// Shared Cache - Application-wide client cache management
+// ============================================================================
+
+// InitializeSharedCache creates the shared client cache with custom options.
+//
+// This is optional and should be called once during application startup (e.g., in main.go)
+// if non-default cache settings are needed. If not called, GetSharedCache() will create
+// a default cache on first use with:
+//   - Max size: 500 clients
+//   - TTL: 10 minutes
+//
+// Example:
+//
+//	clientutil.InitializeSharedCache(
+//	    clientutil.WithMaxSize(1000),
+//	    clientutil.WithTTL(30*time.Minute),
+//	)
 func InitializeSharedCache(opts ...CacheOption) {
 	sharedCacheMu.Lock()
 	defer sharedCacheMu.Unlock()
@@ -81,26 +132,30 @@ func InitializeSharedCache(opts ...CacheOption) {
 }
 
 // GetSharedCache returns a controller-specific view of the shared client cache.
-// The returned cache automatically tags all metrics with the controller name.
 //
-// If no cache has been initialized, creates a default cache with:
-//   - Max size: 500 clients
-//   - TTL: 10 minutes
+// The returned cache is used exclusively for remote cluster clients (via remoteclient.Builder).
+// All metrics are automatically tagged with the controller name. Multiple controllers share
+// the same underlying cache for optimal memory usage and cache hit rates.
 //
-// All controllers should use this shared cache for optimal memory usage
-// and cache hit rates across the entire application.
+// Controllers should call this during initialization and pass the cache to remoteclient.Builder:
+//
+//	cache := clientutil.GetSharedCache(hivev1.MyControllerName)
+//	builder := remoteclient.NewBuilderWithOptions(
+//	    remoteclient.WithCache(cache),
+//	    remoteclient.WithControllerName(hivev1.MyControllerName),
+//	    remoteclient.WithClusterDeployment(c, cd),
+//	)
 func GetSharedCache(controllerName hivev1.ControllerName) ClientCache {
 	realCache := getSharedCacheInstance()
 	return cache.NewControllerCache(realCache, string(controllerName))
 }
 
 // getSharedCacheInstance returns the underlying shared cache instance.
+// If not explicitly initialized via InitializeSharedCache, creates a default cache.
 func getSharedCacheInstance() ClientCache {
 	sharedCacheOnce.Do(func() {
-		sharedCacheMu.Lock()
-		defer sharedCacheMu.Unlock()
+		// Check if already initialized (lock not needed inside Once.Do)
 		if sharedCache == nil {
-			// Default configuration if not explicitly initialized
 			sharedCache = NewCache(
 				WithMaxSize(500),
 				WithTTL(10*time.Minute),

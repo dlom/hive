@@ -121,7 +121,6 @@ func TestHelper_DeleteDeletionInProgress(t *testing.T) {
 	})
 }
 
-
 func TestHelper_DeleteIdempotent(t *testing.T) {
 	logger := log.NewEntry(log.StandardLogger())
 	ctx := context.Background()
@@ -395,4 +394,3 @@ func TestHelper_DeleteMetricsRecording(t *testing.T) {
 		// Metrics should be recorded for all states
 	})
 }
-

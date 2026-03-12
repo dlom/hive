@@ -46,4 +46,3 @@ func NewClientWithMetricsOrDie(mgr manager.Manager, controllerName hivev1.Contro
 	fieldManager := clientutil.FieldManagerName(controllerName)
 	return client.WithFieldOwner(c, fieldManager)
 }
-

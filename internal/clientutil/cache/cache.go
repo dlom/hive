@@ -19,6 +19,9 @@ type ClientFactory func(ctx context.Context) (client.Client, error)
 // Manual invalidation is not needed and not supported - the cache is self-managing based on key changes.
 //
 // Cache performance is monitored via Prometheus metrics automatically - no external stats access needed.
+//
+// Currently used exclusively for remote cluster clients (via pkg/remoteclient.Builder). Local cluster
+// clients are constructed directly without caching since they use the shared manager cache for reads.
 type ClientCache interface {
 	// Get retrieves a client from the cache or creates a new one using the factory.
 	// If the client exists in cache and is not expired, it is returned immediately.
@@ -28,7 +31,7 @@ type ClientCache interface {
 
 // cacheEntry represents a single cached client with metadata.
 type cacheEntry struct {
-	key        string        // cache key
+	key        string // cache key
 	client     client.Client
 	created    time.Time
 	lastAccess time.Time
@@ -42,7 +45,8 @@ type lruCache struct {
 	// entries maps cache keys to cached clients
 	entries map[string]*cacheEntry
 
-	// accessOrder maintains LRU ordering (front = oldest, back = newest)
+	// accessOrder maintains LRU ordering of cache keys (front = oldest, back = newest)
+	// Stores key strings, not entries, for clean ownership semantics
 	accessOrder *list.List
 
 	// Configuration
@@ -104,7 +108,6 @@ func (c *lruCache) Get(ctx context.Context, key CacheKey, factory ClientFactory)
 			c.mu.Lock()
 			c.evictLocked(keyStr, "ttl", controllerName)
 			c.mu.Unlock()
-			exists = false
 		} else {
 			// Cache hit - update access time
 			c.mu.Lock()
@@ -155,7 +158,7 @@ func (c *lruCache) Get(ctx context.Context, key CacheKey, factory ClientFactory)
 		created:    time.Now(),
 		lastAccess: time.Now(),
 	}
-	newEntry.element = c.accessOrder.PushBack(newEntry)
+	newEntry.element = c.accessOrder.PushBack(keyStr)
 	c.entries[keyStr] = newEntry
 
 	// Record cache size after adding new entry
@@ -172,9 +175,9 @@ func (c *lruCache) evictOldestLocked(controllerName string) {
 		return
 	}
 
-	// Front of list is the oldest entry
-	entry := oldest.Value.(*cacheEntry)
-	c.evictLocked(entry.key, "lru", controllerName)
+	// Front of list contains the key of the oldest entry
+	keyStr := oldest.Value.(string)
+	c.evictLocked(keyStr, "lru", controllerName)
 }
 
 // evictLocked removes an entry from the cache.

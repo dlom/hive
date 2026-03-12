@@ -1,3 +1,6 @@
+// This file contains Prometheus metrics for the remote client cache.
+// Metrics are colocated with the cache implementation for locality of behavior.
+// All metrics are private and automatically recorded by cache operations.
 package cache
 
 import (

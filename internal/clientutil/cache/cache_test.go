@@ -153,8 +153,6 @@ func TestCache_TTL_Expiration(t *testing.T) {
 	}
 }
 
-
-
 // TestCache_ConcurrentAccess tests thread-safety with concurrent goroutines.
 func TestCache_ConcurrentAccess(t *testing.T) {
 	cache := NewCache(WithMaxSize(100), WithTTL(1*time.Hour))

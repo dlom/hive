@@ -15,7 +15,6 @@ import (
 )
 
 // ControllerMetricsTripper is a RoundTripper implementation which tracks metrics for client requests.
-// This is copied from pkg/controller/utils/clientwrapper.go with bug fixes.
 type ControllerMetricsTripper struct {
 	http.RoundTripper
 	Controller hivev1.ControllerName
@@ -23,13 +22,10 @@ type ControllerMetricsTripper struct {
 }
 
 // AddControllerMetricsTransportWrapper adds a transport wrapper to the given REST config.
-// This fixes the bug in pkg/controller/utils/clientwrapper.go where the wrapper logic
-// was incorrect (lines 83-101).
+// The wrapper records Prometheus metrics for all HTTP requests and logs slow requests (≥5s).
 //
-// The bug: The function checked if WrapTransport != nil, wrapped it, but then
-// unconditionally overwrote it at line 95, losing the wrapped version.
-//
-// The fix: Only wrap if not already wrapped, OR properly chain if there's an existing wrapper.
+// If the config already has a WrapTransport function, this will properly chain them.
+// If already wrapped with our metrics tripper, returns early to avoid duplicate wrapping.
 func AddControllerMetricsTransportWrapper(cfg *rest.Config, controllerName hivev1.ControllerName, remote bool) {
 	if cfg == nil {
 		return
@@ -73,13 +69,7 @@ func (cmt *ControllerMetricsTripper) CancelRequest(req *http.Request) {
 	remoteStr := strconv.FormatBool(cmt.Remote)
 	path, _ := parsePath(req.URL.Path)
 
-	// Record cancellation metric
-	metricKubeClientRequestsCancelled.WithLabelValues(
-		cmt.Controller.String(),
-		req.Method,
-		path,
-		remoteStr,
-	).Inc()
+	recordRequestCancelled(cmt.Controller.String(), req.Method, path, remoteStr)
 
 	log.WithFields(log.Fields{
 		"controller": cmt.Controller.String(),
@@ -103,27 +93,14 @@ func (cmt *ControllerMetricsTripper) RoundTrip(req *http.Request) (*http.Respons
 	applyTime := metav1.Now().Sub(startTime)
 
 	if err == nil && pathErr == nil {
-		// Record metrics
-		metricKubeClientRequests.WithLabelValues(
-			cmt.Controller.String(),
-			req.Method,
-			path,
-			remoteStr,
-			resp.Status,
-		).Inc()
-
-		metricKubeClientRequestSeconds.WithLabelValues(
-			cmt.Controller.String(),
-			req.Method,
-			path,
-			remoteStr,
-			resp.Status,
-		).Observe(applyTime.Seconds())
+		controller := cmt.Controller.String()
+		recordRequest(controller, req.Method, path, remoteStr, resp.Status)
+		recordRequestDuration(controller, req.Method, path, remoteStr, resp.Status, applyTime.Seconds())
 
 		// Log slow requests
 		if applyTime >= 5*time.Second {
 			log.WithFields(log.Fields{
-				"controller":    cmt.Controller.String(),
+				"controller":    controller,
 				"method":        req.Method,
 				"path":          path,
 				"remote":        remoteStr,
