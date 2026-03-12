@@ -103,9 +103,17 @@ func TestPrepareConfigForClient_IPOverride(t *testing.T) {
 		t.Error("Dial function was not set")
 	}
 
+	// Verify proxy workaround was set (HIVE-2272)
+	if result.Proxy == nil {
+		t.Error("Proxy function was not set (HIVE-2272 workaround missing)")
+	}
+
 	// Verify original is unchanged
 	if original.Dial != nil {
 		t.Error("Original config Dial was mutated")
+	}
+	if original.Proxy != nil {
+		t.Error("Original config Proxy was mutated")
 	}
 }
 
@@ -186,5 +194,32 @@ func TestCreateDialerWithIPOverride_InvalidAddress(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error for invalid address")
 	}
+}
+
+func TestCreateDialerWithIPOverride_HasTimeout(t *testing.T) {
+	// This test verifies that the dialer has a timeout by trying to connect to
+	// a non-routable IP (TEST-NET-1 per RFC 5737). The connection should timeout
+	// within the configured 30 seconds.
+	ipOverride := "192.0.2.1" // TEST-NET-1 - guaranteed non-routable
+	dialer := createDialerWithIPOverride(ipOverride)
+
+	// Use a short context timeout to avoid waiting full 30s
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	_, err := dialer(ctx, "tcp", "api.example.com:6443")
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Error("Expected timeout error for non-routable IP")
+	}
+
+	// Should fail within context timeout (2s), not hang forever
+	if elapsed > 3*time.Second {
+		t.Errorf("Dialer took too long to timeout: %v (should respect context)", elapsed)
+	}
+
+	t.Logf("Dialer correctly timed out after %v", elapsed)
 }
 

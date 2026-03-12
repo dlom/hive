@@ -1,4 +1,4 @@
-package utils
+package metrics
 
 import (
 	"testing"
@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestPathParse(t *testing.T) {
+func TestParsePath(t *testing.T) {
 	tests := []struct {
 		name        string
 		path        string
@@ -68,7 +68,7 @@ func TestPathParse(t *testing.T) {
 			path:     "/apis/hive.openshift.io/v1/namespaces/hive/clusterdeployments/dgoodwin-del/status",
 			expected: "hive.openshift.io/v1/clusterdeployments",
 		},
-		// Clients sometimes make calls like this on startup I believe for caching purposes.
+		// Clients sometimes make calls like this on startup for caching purposes.
 		// We don't want to track these as metrics, returning an error from the parse indicates to skip.
 		{
 			name:        "client caching",
@@ -92,9 +92,9 @@ func TestPathParse(t *testing.T) {
 			if test.expectedErr {
 				assert.Error(t, err)
 			} else {
+				assert.NoError(t, err)
 				assert.Equal(t, test.expected, result)
 			}
 		})
 	}
-
 }
