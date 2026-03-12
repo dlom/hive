@@ -30,6 +30,7 @@ config/apiserver/certificates/**
 # editor and IDE paraphernalia
 .idea
 .vscode
+.claude/
 *.swp
 *.swo
 *~
