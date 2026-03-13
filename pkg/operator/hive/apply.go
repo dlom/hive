@@ -1,6 +1,8 @@
 package hive
 
 import (
+	"context"
+
 	"github.com/openshift/library-go/pkg/operator/resource/resourceread"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -14,7 +16,7 @@ import (
 
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	"github.com/openshift/hive/pkg/operator/assets"
-	"github.com/openshift/hive/pkg/resource"
+	resource "github.com/openshift/hive/pkg/resourcev2"
 	"github.com/openshift/hive/pkg/util/scheme"
 )
 
@@ -127,19 +129,19 @@ func fromBytes(assetBytes []byte) toRuntimeObject {
 // - Executes rtoFactory to produce a runtime object.
 // - Modifies the runtime object according to opts.
 // - Applies the runtime object to the cluster via h.
-func applyRuntimeObject(h resource.Helper, rtoFactory toRuntimeObject, hLog log.FieldLogger, opts ...rtoApplyOpt) (resource.ApplyResult, error) {
+func applyRuntimeObject(h resource.Helper, rtoFactory toRuntimeObject, hLog log.FieldLogger, opts ...rtoApplyOpt) (resource.ApplyState, error) {
 	requiredObj, err := rtoFactory(hLog)
 	if err != nil {
 		hLog.WithError(err).Error("failed to convert to runtime object")
-		return resource.UnknownApplyResult, err
+		return 0, err
 	}
 	for _, opt := range opts {
 		if err := opt(requiredObj, hLog); err != nil {
 			hLog.WithError(err).Error("failed to apply option to runtime object")
-			return resource.UnknownApplyResult, err
+			return 0, err
 		}
 	}
-	return h.ApplyRuntimeObject(requiredObj, scheme.GetScheme())
+	return h.Apply(context.TODO(), requiredObj)
 }
 
 func deleteAssetByPathWithNSOverride(h resource.Helper, assetPath, namespaceOverride string, hiveconfig *hivev1.HiveConfig) error {
@@ -160,8 +162,8 @@ func deleteAssetBytesWithNSOverride(h resource.Helper, assetBytes []byte, namesp
 
 func deleteRuntimeObjectWithNSOverride(h resource.Helper, requiredObj runtime.Object, namespaceOverride string, hiveconfig *hivev1.HiveConfig) error {
 	objA, _ := meta.Accessor(requiredObj)
-	objT, _ := meta.TypeAccessor(requiredObj)
-	if err := h.Delete(objT.GetAPIVersion(), objT.GetKind(), namespaceOverride, objA.GetName()); err != nil {
+	gvk := requiredObj.GetObjectKind().GroupVersionKind()
+	if _, err := h.Delete(context.Background(), gvk, namespaceOverride, objA.GetName()); err != nil {
 		return errors.Wrapf(err, "unable to delete asset")
 	}
 	return nil

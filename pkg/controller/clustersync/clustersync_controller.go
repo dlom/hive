@@ -18,6 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/json"
@@ -38,7 +39,7 @@ import (
 	hivemetrics "github.com/openshift/hive/pkg/controller/metrics"
 	controllerutils "github.com/openshift/hive/pkg/controller/utils"
 	"github.com/openshift/hive/pkg/remoteclient"
-	"github.com/openshift/hive/pkg/resource"
+	resource "github.com/openshift/hive/pkg/resourcev2"
 )
 
 const (
@@ -172,7 +173,7 @@ func resourceHelperBuilderFunc(
 		return nil, err
 	}
 
-	return resource.NewHelper(logger, resource.FromRESTConfig(restConfig), resource.WithControllerName(ControllerName))
+	return resource.NewHelper(logger, resource.WithRESTConfig(restConfig), resource.WithControllerName(ControllerName))
 }
 
 // AddToManager adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -665,14 +666,18 @@ func (r *ReconcileClusterSync) applySyncSet(
 		return
 	}
 
-	applyFn := resourceHelper.Apply
+	// Note: The new resourcev2 API uses Server-Side Apply for all cases.
+	// ApplyBehavior distinctions (Apply/CreateOrUpdate/CreateOnly) from the old API
+	// are handled by SSA's field management automatically.
+	// Create a wrapper function that adapts the new Apply signature to the callback signature
+	applyFn := func(obj []byte) (resource.ApplyState, error) {
+		return resourceHelper.Apply(context.TODO(), obj)
+	}
 	applyFnMetricsLabel := labelApply
 	switch syncSet.GetSpec().ApplyBehavior {
 	case hivev1.CreateOrUpdateSyncSetApplyBehavior:
-		applyFn = resourceHelper.CreateOrUpdate
 		applyFnMetricsLabel = labelCreateOrUpdate
 	case hivev1.CreateOnlySyncSetApplyBehavior:
-		applyFn = resourceHelper.Create
 		applyFnMetricsLabel = labelCreateOnly
 	}
 
@@ -771,7 +776,7 @@ func (r *ReconcileClusterSync) applyResource(
 	resourceIndex int,
 	resource *unstructured.Unstructured,
 	reference hiveintv1alpha1.SyncResourceReference,
-	applyFn func(obj []byte) (resource.ApplyResult, error),
+	applyFn func(obj []byte) (resource.ApplyState, error),
 	applyFnMetricsLabel string,
 	logger log.FieldLogger,
 ) (returnErr error, requeue bool) {
@@ -792,7 +797,7 @@ func (r *ReconcileClusterSync) applySecret(
 	secretIndex int,
 	secretMapping hivev1.SecretMapping,
 	reference hiveintv1alpha1.SyncResourceReference,
-	applyFn func(obj []byte) (resource.ApplyResult, error),
+	applyFn func(obj []byte) (resource.ApplyState, error),
 	applyFnMetricsLabel string,
 	logger log.FieldLogger,
 ) (returnErr error, requeue bool) {
@@ -819,7 +824,7 @@ func (r *ReconcileClusterSync) applySecret(
 	secret := &corev1.Secret{}
 	if err := r.Get(context.Background(), types.NamespacedName{Namespace: srcNamespace, Name: secretMapping.SourceRef.Name}, secret); err != nil {
 		logger.WithError(err).Log(controllerutils.LogLevel(err), "cannot read secret")
-		return errors.Wrapf(err, "failed to read secret %d", secretIndex), true
+		return errors.Wrapf(err, "failed to retrieve secret %s/%s", srcNamespace, secretMapping.SourceRef.Name), true
 	}
 	// Clear out the fields of the metadata which are specific to the cluster to which the secret belongs.
 	secret.ObjectMeta = metav1.ObjectMeta{
@@ -847,12 +852,19 @@ func (r *ReconcileClusterSync) applyPatch(
 		WithField("patchAPIVersion", patch.APIVersion).
 		WithField("patchKind", patch.Kind)
 	logger.Debug("applying patch")
-	if err := resourceHelper.Patch(
-		types.NamespacedName{Namespace: patch.Namespace, Name: patch.Name},
-		patch.Kind,
-		patch.APIVersion,
+	gvk := schema.FromAPIVersionAndKind(patch.APIVersion, patch.Kind)
+	// Convert string patchType to types.PatchType
+	patchType := types.PatchType(patch.PatchType)
+	if patchType == "" {
+		patchType = types.StrategicMergePatchType // default
+	}
+	if _, err := resourceHelper.Patch(
+		context.TODO(),
+		gvk,
+		patch.Namespace,
+		patch.Name,
 		[]byte(patch.Patch),
-		patch.PatchType,
+		patchType,
 	); err != nil {
 		return errors.Wrapf(err, "failed to apply patch %d", patchIndex), true
 	}
@@ -862,7 +874,7 @@ func (r *ReconcileClusterSync) applyPatch(
 func applyToTargetCluster(
 	obj hivev1.MetaRuntimeObject,
 	applyFnMetricLabel string,
-	applyFn func(obj []byte) (resource.ApplyResult, error),
+	applyFn func(obj []byte) (resource.ApplyState, error),
 	logger log.FieldLogger,
 ) error {
 	startTime := time.Now()
@@ -913,7 +925,8 @@ func deleteFromTargetCluster(
 			WithField("resourceAPIVersion", r.APIVersion).
 			WithField("resourceKind", r.Kind)
 		logger.Info("deleting resource")
-		if err := resourceHelper.Delete(r.APIVersion, r.Kind, r.Namespace, r.Name); err != nil {
+		gvk := schema.FromAPIVersionAndKind(r.APIVersion, r.Kind)
+		if _, err := resourceHelper.Delete(context.TODO(), gvk, r.Namespace, r.Name); err != nil {
 			logger.WithError(err).Warn("could not delete resource")
 			allErrs = append(allErrs, fmt.Errorf("failed to delete %s, Kind=%s %s/%s: %w", r.APIVersion, r.Kind, r.Namespace, r.Name, err))
 			remainingResources = append(remainingResources, r)

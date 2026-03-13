@@ -2,6 +2,7 @@ package createcluster
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -548,7 +549,7 @@ func (o *Options) Run() error {
 			return err
 		}
 		accessor.SetNamespace(o.Namespace)
-		if _, err := rh.ApplyRuntimeObject(obj, scheme); err != nil {
+		if _, err := rh.Apply(context.Background(), obj); err != nil {
 			return err
 		}
 

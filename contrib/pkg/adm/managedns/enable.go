@@ -32,8 +32,7 @@ import (
 	awscreds "github.com/openshift/hive/pkg/creds/aws"
 	azurecreds "github.com/openshift/hive/pkg/creds/azure"
 	gcpcreds "github.com/openshift/hive/pkg/creds/gcp"
-	"github.com/openshift/hive/pkg/resource"
-	"github.com/openshift/hive/pkg/util/scheme"
+	resource "github.com/openshift/hive/pkg/resourcev2"
 )
 
 const longDesc = `
@@ -115,7 +114,6 @@ func (o *Options) Validate(cmd *cobra.Command) error {
 
 // Run executes the command
 func (o *Options) Run(args []string) error {
-	scheme := scheme.GetScheme()
 	rh, err := o.getResourceHelper()
 	if err != nil {
 		return err
@@ -181,7 +179,7 @@ func (o *Options) Run(args []string) error {
 
 	log.Infof("created cloud credentials secret: %s", credsSecret.Name)
 	credsSecret.Namespace = hiveNSName
-	if _, err := rh.ApplyRuntimeObject(credsSecret, scheme); err != nil {
+	if _, err := rh.Apply(context.Background(), credsSecret); err != nil {
 		log.WithError(err).Fatal("failed to save generated secret")
 	}
 
@@ -377,7 +375,7 @@ func (o *Options) getResourceHelper() (resource.Helper, error) {
 	}
 	return resource.NewHelper(
 		log.WithField("command", "adm manage-dns enable"),
-		resource.FromRESTConfig(cfg),
+		resource.WithRESTConfig(cfg),
 		resource.WithControllerName("util-managedns-enable"))
 }
 

@@ -22,7 +22,7 @@ import (
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	"github.com/openshift/hive/pkg/constants"
 	controllerutils "github.com/openshift/hive/pkg/controller/utils"
-	"github.com/openshift/hive/pkg/resource"
+	resource "github.com/openshift/hive/pkg/resourcev2"
 	testfake "github.com/openshift/hive/pkg/test/fake"
 	testsecret "github.com/openshift/hive/pkg/test/secret"
 	"github.com/openshift/hive/pkg/util/scheme"
@@ -312,9 +312,9 @@ type fakeApplier struct {
 	appliedObjects []runtime.Object
 }
 
-func (a *fakeApplier) ApplyRuntimeObject(obj runtime.Object, scheme *runtime.Scheme) (resource.ApplyResult, error) {
-	a.appliedObjects = append(a.appliedObjects, obj)
-	return "", nil
+func (a *fakeApplier) Apply(ctx context.Context, obj interface{}) (resource.ApplyState, error) {
+	a.appliedObjects = append(a.appliedObjects, obj.(runtime.Object))
+	return resource.Configured, nil
 }
 
 type fakeClusterDeploymentWrapper struct {

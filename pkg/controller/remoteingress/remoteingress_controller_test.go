@@ -27,7 +27,7 @@ import (
 	hivev1aws "github.com/openshift/hive/apis/hive/v1/aws"
 	"github.com/openshift/hive/pkg/constants"
 	"github.com/openshift/hive/pkg/controller/utils"
-	"github.com/openshift/hive/pkg/resource"
+	resource "github.com/openshift/hive/pkg/resourcev2"
 	testassert "github.com/openshift/hive/pkg/test/assert"
 	testfake "github.com/openshift/hive/pkg/test/fake"
 	"github.com/openshift/hive/pkg/util/scheme"
@@ -762,7 +762,7 @@ type fakeKubeCLI struct {
 	createdSyncSet createdSyncSetInfo
 }
 
-func (f *fakeKubeCLI) ApplyRuntimeObject(obj runtime.Object, scheme *runtime.Scheme) (resource.ApplyResult, error) {
+func (f *fakeKubeCLI) Apply(ctx context.Context, obj interface{}) (resource.ApplyState, error) {
 	ss := obj.(*hivev1.SyncSet)
 	created := createdSyncSetInfo{
 		name:      ss.Name,
@@ -786,7 +786,7 @@ func (f *fakeKubeCLI) ApplyRuntimeObject(obj runtime.Object, scheme *runtime.Sch
 		if uic, ok := raw.Object.(*unstructured.Unstructured); ok && uic.GetKind() == "IngressController" {
 			var ic ingresscontroller.IngressController
 			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(uic.Object, &ic); err != nil {
-				return "", err
+				return 0, err
 			}
 			raw = runtime.RawExtension{Object: &ic}
 		}
@@ -818,7 +818,7 @@ func (f *fakeKubeCLI) ApplyRuntimeObject(obj runtime.Object, scheme *runtime.Sch
 
 	f.createdSyncSet = created
 
-	return "", nil
+	return resource.Configured, nil
 }
 
 func validateSyncSet(t *testing.T, existingSyncSet createdSyncSetInfo, expectedSecrets []string, expectedIngressControllers []SyncSetIngressEntry) {

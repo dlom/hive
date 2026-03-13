@@ -16,7 +16,7 @@ import (
 	"github.com/openshift/hive/pkg/controller/images"
 	controllerutils "github.com/openshift/hive/pkg/controller/utils"
 	"github.com/openshift/hive/pkg/operator/assets"
-	"github.com/openshift/hive/pkg/resource"
+	resource "github.com/openshift/hive/pkg/resourcev2"
 )
 
 type ssCfg struct {
@@ -223,7 +223,8 @@ func (r *ReconcileHiveConfig) deployStatefulSet(c ssCfg, hLog log.FieldLogger, h
 			//     invalid: spec: Forbidden: updates to statefulset spec for fields other than 'replicas', 'template', and 'updateStrategy' are forbidden"
 			// The only fix is to delete the statefulset and have the apply below recreate it.
 			hLog.Infof("deleting the existing %s statefulset because spec has changed", c.name)
-			err := h.Delete(existingStatefulSet.APIVersion, existingStatefulSet.Kind, existingStatefulSet.Namespace, existingStatefulSet.Name)
+			gvk := existingStatefulSet.GetObjectKind().GroupVersionKind()
+			_, err := h.Delete(context.TODO(), gvk, existingStatefulSet.Namespace, existingStatefulSet.Name)
 			if err != nil {
 				hLog.WithError(err).Error("error deleting statefulset")
 			}
@@ -248,7 +249,7 @@ func (r *ReconcileHiveConfig) deployStatefulSet(c ssCfg, hLog log.FieldLogger, h
 		hLog.WithError(err).Error("error applying statefulset")
 		return err
 	}
-	hLog.Infof("%s statefulset applied (%s)", c.name, result)
+	hLog.Infof("%s statefulset applied (%s)", c.name, result.String())
 
 	hLog.Infof("all %s components successfully reconciled", c.name)
 	return nil

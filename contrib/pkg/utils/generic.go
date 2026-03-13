@@ -24,7 +24,7 @@ import (
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	"github.com/openshift/hive/pkg/constants"
 	"github.com/openshift/hive/pkg/controller/utils"
-	"github.com/openshift/hive/pkg/resource"
+	resource "github.com/openshift/hive/pkg/resourcev2"
 )
 
 const (
@@ -59,7 +59,7 @@ func GetResourceHelper(controllerName hivev1.ControllerName, logger log.FieldLog
 		logger.WithError(err).Error("Cannot get client config")
 		return nil, err
 	}
-	return resource.NewHelper(logger, resource.FromRESTConfig(cfg), resource.WithControllerName(controllerName))
+	return resource.NewHelper(logger, resource.WithRESTConfig(cfg), resource.WithControllerName(controllerName))
 }
 
 func DefaultNamespace() (string, error) {

@@ -1,15 +1,20 @@
 package testresource
 
 import (
+	"context"
 	"fmt"
 	"os"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/clientcmd"
+	"sigs.k8s.io/yaml"
 
-	"github.com/openshift/hive/pkg/resource"
+	resource "github.com/openshift/hive/pkg/resourcev2"
 )
 
 // NewTestResourceCommand returns a command to test resource functions
@@ -54,24 +59,36 @@ func newApplyCommand() *cobra.Command {
 				return
 			}
 			content := mustRead(args[0])
-			helper, err := resource.NewHelper(log.WithField("cmd", "apply"), resource.FromKubeconfig(mustRead(kubeconfigPath)))
+
+			// Convert kubeconfig bytes to RESTConfig
+			restCfg, err := clientcmd.RESTConfigFromKubeConfig(mustRead(kubeconfigPath))
+			if err != nil {
+				fmt.Printf("Error creating REST config: %v\n", err)
+				return
+			}
+
+			helper, err := resource.NewHelper(log.WithField("cmd", "apply"), resource.WithRESTConfig(restCfg))
 			if err != nil {
 				fmt.Printf("Error creating resource helper: %v\n", err)
 				return
 			}
-			info, err := helper.Info(content)
-			if err != nil {
-				fmt.Printf("Error obtaining info: %v\n", err)
+
+			// Replace Info() call with manual YAML parsing
+			obj := &unstructured.Unstructured{}
+			if err := yaml.Unmarshal(content, obj); err != nil {
+				fmt.Printf("Error parsing resource: %v\n", err)
 				return
 			}
-			name := types.NamespacedName{Namespace: info.Namespace, Name: info.Name}
-			fmt.Printf("The resource is %s (Kind: %s, APIVersion: %s)", name.String(), info.Kind, info.APIVersion)
-			applyResult, err := helper.Apply(content)
+			name := types.NamespacedName{Namespace: obj.GetNamespace(), Name: obj.GetName()}
+			gvk := obj.GroupVersionKind()
+			fmt.Printf("The resource is %s (Kind: %s, APIVersion: %s)\n", name.String(), gvk.Kind, gvk.GroupVersion().String())
+
+			applyState, err := helper.Apply(context.Background(), content)
 			if err != nil {
 				fmt.Printf("Error applying: %v\n", err)
 				return
 			}
-			fmt.Printf("The resource was applied successfully: %s\n", applyResult)
+			fmt.Printf("The resource was applied successfully: %s\n", applyState.String())
 		},
 	}
 	cmd.Flags().StringVarP(&kubeconfigPath, "kubeconfig", "k", os.Getenv("KUBECONFIG"), "Kubeconfig file to connect to target server")
@@ -103,7 +120,7 @@ func newPatchCommand() *cobra.Command {
 				cmd.Usage()
 				return
 			}
-			_, ok := patchTypes[patchTypeStr]
+			patchType, ok := patchTypes[patchTypeStr]
 			if !ok {
 				fmt.Printf("Invalid patch type %s\n", patchTypeStr)
 				cmd.Usage()
@@ -125,12 +142,22 @@ func newPatchCommand() *cobra.Command {
 				return
 			}
 			content := mustRead(args[0])
-			helper, err := resource.NewHelper(log.WithField("cmd", "patch"), resource.FromKubeconfig(mustRead(kubeconfigPath)))
+
+			// Convert kubeconfig bytes to RESTConfig
+			restCfg, err := clientcmd.RESTConfigFromKubeConfig(mustRead(kubeconfigPath))
+			if err != nil {
+				fmt.Printf("Error creating REST config: %v\n", err)
+				return
+			}
+
+			helper, err := resource.NewHelper(log.WithField("cmd", "patch"), resource.WithRESTConfig(restCfg))
 			if err != nil {
 				fmt.Printf("Error creating resource helper: %v\n", err)
 				return
 			}
-			err = helper.Patch(types.NamespacedName{Name: name, Namespace: namespace}, kind, apiVersion, content, patchTypeStr)
+
+			gvk := schema.FromAPIVersionAndKind(apiVersion, kind)
+			_, err = helper.Patch(context.Background(), gvk, namespace, name, content, patchType)
 			if err != nil {
 				fmt.Printf("Error: %v\n", err)
 				return

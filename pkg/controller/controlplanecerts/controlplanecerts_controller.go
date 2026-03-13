@@ -37,7 +37,7 @@ import (
 	hivemetrics "github.com/openshift/hive/pkg/controller/metrics"
 	controllerutils "github.com/openshift/hive/pkg/controller/utils"
 	"github.com/openshift/hive/pkg/remoteclient"
-	"github.com/openshift/hive/pkg/resource"
+	resource "github.com/openshift/hive/pkg/resourcev2"
 	k8slabels "github.com/openshift/hive/pkg/util/labels"
 )
 
@@ -64,7 +64,7 @@ var (
 )
 
 type applier interface {
-	ApplyRuntimeObject(obj runtime.Object, scheme *runtime.Scheme) (resource.ApplyResult, error)
+	Apply(ctx context.Context, obj interface{}) (resource.ApplyState, error)
 }
 
 // Add creates a new ControlPlaneCerts Controller and adds it to the Manager with default RBAC. The Manager will set fields on the Controller
@@ -84,9 +84,8 @@ func NewReconciler(mgr manager.Manager, rateLimiter flowcontrol.RateLimiter) rec
 	logger := log.WithField("controller", ControllerName)
 	helper, err := resource.NewHelper(
 		logger,
-		resource.FromRESTConfig(mgr.GetConfig()),
-		resource.WithControllerName(ControllerName),
-		resource.WithMetrics())
+		resource.WithRESTConfig(mgr.GetConfig()),
+		resource.WithControllerName(ControllerName))
 	if err != nil {
 		// Hard exit if we can't create this controller
 		logger.WithError(err).Fatal("unable to create resource helper")
@@ -225,7 +224,7 @@ func (r *ReconcileControlPlaneCerts) Reconcile(ctx context.Context, request reco
 		return reconcile.Result{}, err
 	}
 
-	if _, err = r.applier.ApplyRuntimeObject(desiredSyncSet, r.scheme); err != nil {
+	if _, err = r.applier.Apply(ctx, desiredSyncSet); err != nil {
 		cdLog.WithError(err).Error("failed to apply control plane certificates syncset")
 		return reconcile.Result{}, err
 	}

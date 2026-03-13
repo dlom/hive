@@ -68,7 +68,6 @@ import (
 	"github.com/openshift/hive/pkg/creds"
 	"github.com/openshift/hive/pkg/gcpclient"
 	"github.com/openshift/hive/pkg/ibmclient"
-	"github.com/openshift/hive/pkg/resource"
 	k8slabels "github.com/openshift/hive/pkg/util/labels"
 	"github.com/openshift/hive/pkg/util/scheme"
 	yamlutils "github.com/openshift/hive/pkg/util/yaml"
@@ -1754,7 +1753,7 @@ func (m *InstallManager) cleanupAdminPasswordSecret(provisionName, provisionName
 
 // deleteAnyExistingObject will look for any object that exists that matches the passed in 'obj' and will delete it if it exists
 func (m *InstallManager) deleteAnyExistingObject(namespacedName types.NamespacedName, obj hivev1.MetaRuntimeObject) error {
-	_, err := resource.DeleteAnyExistingObject(m.DynamicClient, namespacedName, obj, m.log)
+	_, err := utils.DeleteAnyExistingObject(m.DynamicClient, namespacedName, obj, m.log)
 	return err
 }
 

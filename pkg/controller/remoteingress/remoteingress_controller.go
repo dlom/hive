@@ -37,7 +37,7 @@ import (
 	"github.com/openshift/hive/pkg/constants"
 	hivemetrics "github.com/openshift/hive/pkg/controller/metrics"
 	controllerutils "github.com/openshift/hive/pkg/controller/utils"
-	"github.com/openshift/hive/pkg/resource"
+	resource "github.com/openshift/hive/pkg/resourcev2"
 )
 
 const (
@@ -64,9 +64,9 @@ var clusterDeploymentRemoteIngressConditions = []hivev1.ClusterDeploymentConditi
 	hivev1.IngressCertificateNotFoundCondition,
 }
 
-// kubeCLIApplier knows how to ApplyRuntimeObject.
+// kubeCLIApplier knows how to Apply.
 type kubeCLIApplier interface {
-	ApplyRuntimeObject(obj runtime.Object, scheme *runtime.Scheme) (resource.ApplyResult, error)
+	Apply(ctx context.Context, obj interface{}) (resource.ApplyState, error)
 }
 
 // Add creates a new RemoteIngress Controller and adds it to the Manager with default RBAC. The Manager will set fields on the
@@ -86,9 +86,8 @@ func NewReconciler(mgr manager.Manager, rateLimiter flowcontrol.RateLimiter) rec
 	logger := log.WithField("controller", ControllerName)
 	helper, err := resource.NewHelper(
 		logger,
-		resource.FromRESTConfig(mgr.GetConfig()),
-		resource.WithControllerName(ControllerName),
-		resource.WithMetrics())
+		resource.WithRESTConfig(mgr.GetConfig()),
+		resource.WithControllerName(ControllerName))
 	if err != nil {
 		// Hard exit if we can't create this controller
 		logger.WithError(err).Fatal("unable to create resource helper")
@@ -344,7 +343,7 @@ func (r *ReconcileRemoteClusterIngress) syncSyncSet(rContext *reconcileContext, 
 		return err
 	}
 
-	if _, err := r.kubeCLI.ApplyRuntimeObject(syncSet, r.scheme); err != nil {
+	if _, err := r.kubeCLI.Apply(context.TODO(), syncSet); err != nil {
 		rContext.logger.WithError(err).Error("failed to apply syncset")
 		return err
 	}

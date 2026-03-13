@@ -16,9 +16,11 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	appsv1 "k8s.io/api/apps/v1"
+	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
@@ -30,7 +32,7 @@ import (
 	"github.com/openshift/hive/pkg/controller/images"
 	"github.com/openshift/hive/pkg/controller/utils"
 	"github.com/openshift/hive/pkg/operator/assets"
-	"github.com/openshift/hive/pkg/resource"
+	resource "github.com/openshift/hive/pkg/resourcev2"
 )
 
 const (
@@ -71,16 +73,15 @@ func (r *ReconcileHiveConfig) deployHive(hLog log.FieldLogger, h resource.Helper
 		// The hive-controller binary creates a configmap and lease to handle leader election. Delete them.
 		// TODO: Dedup this with const cmd/manager/main.go:leaderElectionLockName
 		lockName := "hive-controllers-leader"
-		// TODO: Something better than hardcoding apiVersion and kind.
-		toDel := map[string]string{
-			"ConfigMap": "v1",
-			"Lease":     "coordination.k8s.io/v1",
+		toDel := map[string]schema.GroupVersionKind{
+			"ConfigMap": corev1.SchemeGroupVersion.WithKind("ConfigMap"),
+			"Lease":     coordinationv1.SchemeGroupVersion.WithKind("Lease"),
 		}
-		for kind, apiVersion := range toDel {
-			hLog.Infof("Deleting %s/%s from old target namespace %s", kind, lockName, ns)
+		for name, gvk := range toDel {
+			hLog.Infof("Deleting %s/%s from old target namespace %s", name, lockName, ns)
 			// h.Delete already no-ops for IsNotFound
-			if err := h.Delete(apiVersion, kind, ns, lockName); err != nil {
-				return errors.Wrapf(err, "error deleting %s/%s from old target namespace %s", kind, lockName, ns)
+			if _, err := h.Delete(context.TODO(), gvk, ns, lockName); err != nil {
+				return errors.Wrapf(err, "error deleting %s/%s from old target namespace %s", name, lockName, ns)
 			}
 		}
 
@@ -382,8 +383,8 @@ func (r *ReconcileHiveConfig) includeAdditionalCAs(hLog log.FieldLogger, h resou
 	for _, ns := range namespacesToClean {
 		hLog.Infof("Deleting secret/%s from old target namespace %s", hiveAdditionalCASecret, ns)
 		// h.Delete already no-ops for IsNotFound
-		// TODO: Something better than hardcoding apiVersion and kind.
-		if err := h.Delete("v1", "Secret", ns, hiveAdditionalCASecret); err != nil {
+		gvk := corev1.SchemeGroupVersion.WithKind("Secret")
+		if _, err := h.Delete(context.TODO(), gvk, ns, hiveAdditionalCASecret); err != nil {
 			return errors.Wrapf(err, "error deleting secret/%s from old target namespace %s", hiveAdditionalCASecret, ns)
 		}
 	}
@@ -406,7 +407,8 @@ func (r *ReconcileHiveConfig) includeAdditionalCAs(hLog log.FieldLogger, h resou
 	if additionalCA.Len() == 0 {
 		caSecret, err := r.hiveSecretLister.Secrets(hiveNS).Get(hiveAdditionalCASecret)
 		if err == nil {
-			err = h.Delete("v1", "Secret", caSecret.Namespace, caSecret.Name)
+			gvk := corev1.SchemeGroupVersion.WithKind("Secret")
+			_, err = h.Delete(context.TODO(), gvk, caSecret.Namespace, caSecret.Name)
 			if err != nil {
 				hLog.WithError(err).WithField("secret", fmt.Sprintf("%s/%s", hiveNS, hiveAdditionalCASecret)).
 					Error("cannot delete hive additional ca secret")
@@ -430,7 +432,7 @@ func (r *ReconcileHiveConfig) includeAdditionalCAs(hLog log.FieldLogger, h resou
 		hLog.WithError(err).Error("error applying additional cert secret")
 		return err
 	}
-	hLog.Infof("additional cert secret applied (%s)", result)
+	hLog.Infof("additional cert secret applied (%s)", result.String())
 
 	// Generating a volume name with a hash based on the contents of the additional CA
 	// secret will ensure that when there are changes to the secret, the hive controller
@@ -555,7 +557,7 @@ func (r *ReconcileHiveConfig) copyHiveImagePullSecret(hLog log.FieldLogger, h re
 		return err
 	}
 
-	_, err = h.CreateOrUpdateRuntimeObject(destSecret, r.scheme)
+	_, err = h.Apply(context.TODO(), destSecret)
 	return err
 }
 

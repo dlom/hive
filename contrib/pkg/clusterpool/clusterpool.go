@@ -1,6 +1,7 @@
 package clusterpool
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -245,7 +246,7 @@ func (o *ClusterPoolOptions) run() error {
 			return errors.Wrapf(err, "cannot create accessor for object of type %T", obj)
 		}
 		accessor.SetNamespace(o.Namespace)
-		if _, err := rh.ApplyRuntimeObject(obj, scheme); err != nil {
+		if _, err := rh.Apply(context.Background(), obj); err != nil {
 			return err
 		}
 

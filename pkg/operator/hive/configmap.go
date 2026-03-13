@@ -20,7 +20,7 @@ import (
 	hivecontractsv1alpha1 "github.com/openshift/hive/apis/hivecontracts/v1alpha1"
 	"github.com/openshift/hive/pkg/constants"
 	"github.com/openshift/hive/pkg/controller/utils"
-	"github.com/openshift/hive/pkg/resource"
+	resource "github.com/openshift/hive/pkg/resourcev2"
 	"github.com/openshift/hive/pkg/util/contracts"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
@@ -75,7 +75,8 @@ func (r *ReconcileHiveConfig) scrubOldManagedDomainsConfigMaps(h resource.Helper
 		for _, cm := range configMapList.Items {
 			cmLog = cmLog.WithField("name", cm.Name)
 			cmLog.Info("deleting out-of-date managed domains configmap")
-			if err := h.Delete(cm.APIVersion, cm.Kind, cm.Namespace, cm.Name); err != nil {
+			gvk := cm.GetObjectKind().GroupVersionKind()
+			if _, err := h.Delete(context.TODO(), gvk, cm.Namespace, cm.Name); err != nil {
 				cmLog.WithError(err).Error("failed to delete out-of-date managed domains configmap")
 			}
 		}
@@ -307,8 +308,8 @@ func (r *ReconcileHiveConfig) deployConfigMap(hLog log.FieldLogger, h resource.H
 	for _, ns := range namespacesToClean {
 		cmLog.WithField("namespace", ns).Info("Deleting configmap from old target namespace")
 		// h.Delete already no-ops for IsNotFound
-		// TODO: Something better than hardcoding apiVersion and kind.
-		if err := h.Delete("v1", "ConfigMap", ns, cmInfo.name); err != nil {
+		cmGVK := corev1.SchemeGroupVersion.WithKind("ConfigMap")
+		if _, err := h.Delete(context.TODO(), cmGVK, ns, cmInfo.name); err != nil {
 			return "", errors.Wrapf(err, "error deleting configmap/%s from old target namespace %s", cmInfo.name, ns)
 		}
 	}
@@ -344,7 +345,7 @@ func (r *ReconcileHiveConfig) deployConfigMap(hLog log.FieldLogger, h resource.H
 		cmLog.WithError(err).Error("error applying configmap")
 		return "", err
 	}
-	cmLog.WithField("result", result).Info("configmap applied")
+	cmLog.WithField("result", result.String()).Info("configmap applied")
 
 	cmLog.Info("Hashing configmap data onto a hive deployment annotation")
 

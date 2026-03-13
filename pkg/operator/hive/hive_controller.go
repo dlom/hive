@@ -11,7 +11,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
-	"github.com/openshift/hive/pkg/resource"
+	resource "github.com/openshift/hive/pkg/resourcev2"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -423,7 +423,7 @@ func (r *ReconcileHiveConfig) Reconcile(ctx context.Context, request reconcile.R
 		return reconcile.Result{}, err
 	}
 
-	h, err := resource.NewHelper(hLog, resource.FromRESTConfig(r.restConfig), resource.WithControllerName("operator"))
+	h, err := resource.NewHelper(hLog, resource.WithRESTConfig(r.restConfig), resource.WithControllerName(hivev1.ControllerName("operator")))
 	if err != nil {
 		hLog.WithError(err).Error("error creating resource helper")
 		instance.Status.Conditions = SetHiveConfigCondition(instance.Status.Conditions, hivev1.HiveReadyCondition, corev1.ConditionFalse, "ErrorCreatingResourceHelper", err.Error())
@@ -438,17 +438,15 @@ func (r *ReconcileHiveConfig) Reconcile(ctx context.Context, request reconcile.R
 			Labels: map[string]string{targetNamespaceLabel: "true"},
 		},
 	}
-	if _, err := h.CreateOrUpdateRuntimeObject(hiveNamespace, r.scheme); err != nil {
-		if apierrors.IsAlreadyExists(err) {
-			hLog.WithField("hiveNS", hiveNSName).Debug("target namespace already exists")
-		} else {
-			hLog.WithError(err).Error("error creating hive target namespace")
-			instance.Status.Conditions = SetHiveConfigCondition(instance.Status.Conditions, hivev1.HiveReadyCondition, corev1.ConditionFalse, "ErrorCreatingHiveNamespace", err.Error())
-			r.updateHiveConfigStatus(origHiveConfig, instance, hLog, false)
-			return reconcile.Result{}, err
-		}
-	} else {
+	if applyState, err := h.Apply(ctx, hiveNamespace); err != nil {
+		hLog.WithError(err).Error("error creating hive target namespace")
+		instance.Status.Conditions = SetHiveConfigCondition(instance.Status.Conditions, hivev1.HiveReadyCondition, corev1.ConditionFalse, "ErrorCreatingHiveNamespace", err.Error())
+		r.updateHiveConfigStatus(origHiveConfig, instance, hLog, false)
+		return reconcile.Result{}, err
+	} else if applyState == resource.Created {
 		hLog.WithField("hiveNS", hiveNSName).Info("target namespace created")
+	} else {
+		hLog.WithField("hiveNS", hiveNSName).Debug("target namespace already exists")
 	}
 
 	// Find all namespaces that we've ever installed into. For each resource installed by this
@@ -616,9 +614,11 @@ func (r *ReconcileHiveConfig) Reconcile(ctx context.Context, request reconcile.R
 	// accepting the fact that we might be leaking namespaces.
 	for _, ns := range namespacesToClean {
 		hLog.Infof("Unlabeling former target namespace %s", ns)
-		if err := h.Patch(
-			types.NamespacedName{Name: ns}, "Namespace", "v1",
-			[]byte(fmt.Sprintf(`{"metadata": {"labels": {"%s": null}}}`, targetNamespaceLabel)), "",
+		gvk := corev1.SchemeGroupVersion.WithKind("Namespace")
+		if _, err := h.Patch(
+			ctx, gvk, "", ns,
+			[]byte(fmt.Sprintf(`{"metadata": {"labels": {"%s": null}}}`, targetNamespaceLabel)),
+			types.MergePatchType,
 		); err != nil {
 			hLog.WithError(err).Errorf("error unlabeling former target namespace %s", ns)
 			return reconcile.Result{}, err

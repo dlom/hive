@@ -25,7 +25,6 @@ import (
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	hivemetrics "github.com/openshift/hive/pkg/controller/metrics"
 	controllerutils "github.com/openshift/hive/pkg/controller/utils"
-	"github.com/openshift/hive/pkg/resource"
 )
 
 const (
@@ -402,8 +401,8 @@ func (r *ReconcileClusterClaim) cleanupResources(claim *hivev1.ClusterClaim, log
 	}
 
 	// Delete RoleBinding
-	rolebindingGone, err = resource.DeleteAnyExistingObject(
-		r,
+	rolebindingGone, err = controllerutils.DeleteAnyExistingObject(
+		r.Client,
 		client.ObjectKey{Namespace: clusterName, Name: hiveClaimOwnerRoleBindingName},
 		&rbacv1.RoleBinding{},
 		logger,
@@ -413,8 +412,8 @@ func (r *ReconcileClusterClaim) cleanupResources(claim *hivev1.ClusterClaim, log
 	}
 
 	// Delete Role
-	roleGone, err = resource.DeleteAnyExistingObject(
-		r,
+	roleGone, err = controllerutils.DeleteAnyExistingObject(
+		r.Client,
 		client.ObjectKey{Namespace: clusterName, Name: hiveClaimOwnerRoleName},
 		&rbacv1.Role{},
 		logger,

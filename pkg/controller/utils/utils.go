@@ -436,3 +436,28 @@ func ProcessAssetTemplate(assetBytes []byte, values map[string]string) ([]byte, 
 
 	return buf.Bytes(), nil
 }
+
+// DeleteAnyExistingObject will look for any object that exists that matches the passed in 'obj' and will delete it if it exists.
+// The first return value is true iff the object was already gone.
+func DeleteAnyExistingObject(c client.Client, key client.ObjectKey, obj client.Object, logger log.FieldLogger) (bool, error) {
+	logger = logger.WithField("object", key)
+	switch err := c.Get(context.TODO(), key, obj); {
+	case apierrors.IsNotFound(err):
+		logger.Debug("object does not exist")
+		return true, nil
+	case err != nil:
+		logger.WithError(err).Error("error getting object")
+		return false, errors.Wrap(err, "error getting object")
+	}
+	if obj.GetDeletionTimestamp() != nil {
+		logger.Debug("object has already been deleted")
+		// BUT the object still exists!
+		return false, nil
+	}
+	logger.Info("deleting existing object")
+	if err := c.Delete(context.TODO(), obj); err != nil {
+		logger.WithError(err).Error("error deleting object")
+		return false, errors.Wrap(err, "error deleting object")
+	}
+	return false, nil
+}

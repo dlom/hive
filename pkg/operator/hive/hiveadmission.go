@@ -12,7 +12,7 @@ import (
 	hiveconstants "github.com/openshift/hive/pkg/constants"
 	controllerutils "github.com/openshift/hive/pkg/controller/utils"
 	"github.com/openshift/hive/pkg/operator/assets"
-	"github.com/openshift/hive/pkg/resource"
+	resource "github.com/openshift/hive/pkg/resourcev2"
 	logrusutil "github.com/openshift/hive/pkg/util/logrus"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -207,14 +207,14 @@ func (r *ReconcileHiveConfig) deployHiveAdmission(hLog log.FieldLogger, h resour
 		hLog.WithError(err).Error("error applying deployment")
 		return err
 	}
-	hLog.WithField("result", result).Info("hiveadmission deployment applied")
+	hLog.WithField("result", result.String()).Info("hiveadmission deployment applied")
 
 	result, err = applyRuntimeObject(h, passthrough(apiService), hLog, withGarbageCollection(instance))
 	if err != nil {
 		hLog.WithError(err).Error("error applying apiservice")
 		return err
 	}
-	hLog.Infof("apiservice applied (%s)", result)
+	hLog.Infof("apiservice applied (%s)", result.String())
 
 	for _, webhook := range validatingWebhooks {
 		result, err = applyRuntimeObject(h, passthrough(webhook), hLog, withGarbageCollection(instance))
@@ -222,7 +222,7 @@ func (r *ReconcileHiveConfig) deployHiveAdmission(hLog log.FieldLogger, h resour
 			hLog.WithField("webhook", webhook.Name).WithError(err).Errorf("error applying validating webhook")
 			return err
 		}
-		hLog.WithField("webhook", webhook.Name).Infof("validating webhook: %s", result)
+		hLog.WithField("webhook", webhook.Name).Infof("validating webhook: %s", result.String())
 	}
 
 	hLog.Info("hiveadmission components reconciled successfully")
