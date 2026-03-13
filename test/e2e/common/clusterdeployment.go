@@ -43,7 +43,10 @@ func MustGetInstalledClusterDeployment() *hivev1.ClusterDeployment {
 func MustGetClusterDeploymentClientConfig() *rest.Config {
 	cd := MustGetInstalledClusterDeployment()
 	c := MustGetClient()
-	remoteClientBuilder := remoteclient.NewBuilder(c, cd, "e2e-test")
+	remoteClientBuilder := remoteclient.NewBuilderWithOptions(
+		remoteclient.WithClusterDeployment(c, cd),
+		remoteclient.WithControllerName("e2e-test"),
+	)
 	cfg, err := remoteClientBuilder.RESTConfigWithContext(context.TODO())
 	if err != nil {
 		log.WithError(err).Fatal("unable to get REST config for clusterdeployment")
