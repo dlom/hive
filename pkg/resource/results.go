@@ -4,17 +4,11 @@ package resource
 type ApplyState int
 
 const (
-	// Created indicates the resource was created by the Apply operation.
 	Created ApplyState = iota
-
-	// Configured indicates the resource already existed and was updated by the Apply operation.
 	Configured
-
-	// Unchanged indicates the resource already existed in the desired state and no update was needed.
 	Unchanged
 )
 
-// String returns a string representation of the ApplyState.
 func (s ApplyState) String() string {
 	switch s {
 	case Created:
@@ -28,9 +22,7 @@ func (s ApplyState) String() string {
 	}
 }
 
-// ApplyResult contains the result of an Apply operation.
 type ApplyResult struct {
-	// State indicates whether the resource was created, configured, or unchanged.
 	State ApplyState
 }
 
@@ -38,14 +30,10 @@ type ApplyResult struct {
 type PatchState int
 
 const (
-	// Patched indicates the resource was successfully patched.
 	Patched PatchState = iota
-
-	// PatchUnchanged indicates the patch resulted in no changes to the resource.
 	PatchUnchanged
 )
 
-// String returns a string representation of the PatchState.
 func (s PatchState) String() string {
 	switch s {
 	case Patched:
@@ -57,9 +45,7 @@ func (s PatchState) String() string {
 	}
 }
 
-// PatchResult contains the result of a Patch operation.
 type PatchResult struct {
-	// State indicates whether the resource was patched or unchanged.
 	State PatchState
 }
 
@@ -67,20 +53,11 @@ type PatchResult struct {
 type DeleteState int
 
 const (
-	// Deleted indicates the resource was successfully deleted or was already gone.
-	// This is the success state for idempotent deletion.
 	Deleted DeleteState = iota
-
-	// NotFound indicates the resource never existed.
-	// This allows callers to distinguish "deleted what was there" from "nothing to delete".
 	NotFound
-
-	// DeletionInProgress indicates the resource has a deletionTimestamp but still exists.
-	// This occurs when finalizers are present or graceful deletion is in progress.
 	DeletionInProgress
 )
 
-// String returns a string representation of the DeleteState.
 func (s DeleteState) String() string {
 	switch s {
 	case Deleted:
@@ -94,8 +71,6 @@ func (s DeleteState) String() string {
 	}
 }
 
-// DeleteResult contains the result of a Delete operation.
 type DeleteResult struct {
-	// State indicates the deletion state.
 	State DeleteState
 }

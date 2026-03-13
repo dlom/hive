@@ -17,27 +17,14 @@ import (
 	"github.com/openshift/hive/pkg/util/scheme"
 )
 
-// Apply applies the given resource using Server-Side Apply.
-// This replaces the kubectl-based apply with native Kubernetes APIs, eliminating:
-//   - 3+ second OpenAPI schema fetching overhead
-//   - kubectl library dependency
-//   - os.Args global mutation
-//
-// Server-Side Apply benefits:
-//   - Field-level conflict detection and resolution
-//   - Automatic field ownership tracking
-//   - No client-side three-way merge
-//   - No OpenAPI schema required
 func (h *helperImpl) Apply(ctx context.Context, obj interface{}) (ApplyResult, error) {
 	startTime := time.Now()
 
-	// Convert input to unstructured
 	unstructuredObj, gvk, err := h.toUnstructured(obj)
 	if err != nil {
 		return ApplyResult{}, h.wrapError(err, "parse-object", gvk, "", "")
 	}
 
-	// Check if object exists (for state determination)
 	existingObj := &unstructured.Unstructured{}
 	existingObj.SetGroupVersionKind(gvk)
 	objectKey := client.ObjectKeyFromObject(unstructuredObj)
@@ -48,43 +35,31 @@ func (h *helperImpl) Apply(ctx context.Context, obj interface{}) (ApplyResult, e
 		if !apierrors.IsNotFound(err) {
 			return ApplyResult{}, h.wrapError(err, "get-existing", gvk, objectKey.Namespace, objectKey.Name)
 		}
-		// Not found - will be created
 	} else {
 		exists = true
 		existingResourceVersion = existingObj.GetResourceVersion()
 	}
 
-	// Prepare patch options
 	patchOpts := []client.PatchOption{
-		client.ForceOwnership, // Always use force ownership for Server-Side Apply
+		client.ForceOwnership,
 		client.FieldOwner(clientutil.FieldManagerName(h.controllerName)),
 	}
 
-	// Apply using Server-Side Apply
 	if err := h.client.Patch(ctx, unstructuredObj, client.Apply, patchOpts...); err != nil {
-		// Record operation metrics
 		h.recordOperation("apply", gvk, "failure", time.Since(startTime).Seconds())
 
 		return ApplyResult{}, h.wrapError(err, "apply", gvk, objectKey.Namespace, objectKey.Name)
 	}
 
-	// Determine result state
-	state := Configured
+	var state ApplyState
 	if !exists {
 		state = Created
+	} else if unstructuredObj.GetResourceVersion() == existingResourceVersion {
+		state = Unchanged
 	} else {
-		// Check if anything actually changed by comparing resourceVersion.
-		// ResourceVersion changes whenever the object is modified server-side.
-		// If it stayed the same, the apply made no changes.
-		newResourceVersion := unstructuredObj.GetResourceVersion()
-		if newResourceVersion == existingResourceVersion {
-			state = Unchanged
-		} else {
-			state = Configured
-		}
+		state = Configured
 	}
 
-	// Record success metrics
 	h.recordOperation("apply", gvk, "success", time.Since(startTime).Seconds())
 
 	return ApplyResult{
@@ -92,23 +67,13 @@ func (h *helperImpl) Apply(ctx context.Context, obj interface{}) (ApplyResult, e
 	}, nil
 }
 
-// toUnstructured converts various input types to *unstructured.Unstructured.
-// Accepts:
-//   - []byte (YAML or JSON)
-//   - runtime.Object
-//   - *unstructured.Unstructured
 func (h *helperImpl) toUnstructured(obj interface{}) (*unstructured.Unstructured, schema.GroupVersionKind, error) {
 	switch v := obj.(type) {
 	case []byte:
-		// Parse YAML/JSON to unstructured
 		return h.parseBytes(v)
-
 	case *unstructured.Unstructured:
-		// Already unstructured
 		return v, v.GroupVersionKind(), nil
-
 	case runtime.Object:
-		// Convert runtime.Object to unstructured
 		return h.runtimeObjectToUnstructured(v)
 
 	default:
@@ -116,9 +81,7 @@ func (h *helperImpl) toUnstructured(obj interface{}) (*unstructured.Unstructured
 	}
 }
 
-// parseBytes parses YAML or JSON bytes to unstructured.
 func (h *helperImpl) parseBytes(data []byte) (*unstructured.Unstructured, schema.GroupVersionKind, error) {
-	// Decode YAML/JSON
 	obj := &unstructured.Unstructured{}
 	decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader(data), 4096)
 
@@ -134,9 +97,7 @@ func (h *helperImpl) parseBytes(data []byte) (*unstructured.Unstructured, schema
 	return obj, gvk, nil
 }
 
-// runtimeObjectToUnstructured converts a runtime.Object to unstructured.
 func (h *helperImpl) runtimeObjectToUnstructured(obj runtime.Object) (*unstructured.Unstructured, schema.GroupVersionKind, error) {
-	// Get GVK
 	gvks, _, err := scheme.GetScheme().ObjectKinds(obj)
 	if err != nil {
 		return nil, schema.GroupVersionKind{}, fmt.Errorf("failed to get object kind: %w", err)
@@ -146,7 +107,6 @@ func (h *helperImpl) runtimeObjectToUnstructured(obj runtime.Object) (*unstructu
 	}
 	gvk := gvks[0]
 
-	// Convert to unstructured
 	unstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
 	if err != nil {
 		return nil, gvk, fmt.Errorf("failed to convert to unstructured: %w", err)

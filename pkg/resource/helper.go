@@ -15,45 +15,19 @@ import (
 
 //go:generate mockgen -source=./helper.go -destination=./mock/helper_generated.go -package=mock
 
-// Helper provides context-aware resource operations using Server-Side Apply.
-// It uses native Kubernetes client APIs for all operations.
-//
-// Key features:
-//   - Context support for timeout and cancellation
-//   - Structured result types (Created, Configured, Unchanged, etc.)
-//   - Server-Side Apply (no kubectl dependency, no OpenAPI schema overhead)
-//   - Unified Apply method for all resource types
-//   - Clear deletion semantics with DeletionInProgress state
-//   - Thread-safe field manager naming via clientutil
-//   - No global state mutation
+// Helper provides resource operations using Server-Side Apply.
 type Helper interface {
 	// Apply applies the given resource using Server-Side Apply.
-	// Accepts both []byte (YAML/JSON) and runtime.Object.
-	// Context is used for timeout and cancellation.
-	//
-	// Returns:
-	//   - Created: Resource was created
-	//   - Configured: Resource was updated
-	//   - Unchanged: Resource already in desired state
+	// Accepts []byte (YAML/JSON) or runtime.Object.
 	Apply(ctx context.Context, obj interface{}) (ApplyResult, error)
 
-	// Patch patches the given resource using the specified patch type.
-	// Accepts both []byte patch data and runtime.Object.
-	//
-	// Returns:
-	//   - Patched: Resource was patched
-	//   - PatchUnchanged: Patch resulted in no changes
+	// Patch patches a resource using the specified patch type.
 	Patch(ctx context.Context, obj interface{}, patch []byte, opts ...PatchOption) (PatchResult, error)
 
 	// PatchWithObject patches a resource by GVK, namespace, and name.
-	// This is useful when you have the resource identity but not the full object.
 	PatchWithObject(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, patch []byte, opts ...PatchOption) (PatchResult, error)
 
-	// Delete deletes the specified resource.
-	// Returns clear deletion states:
-	//   - Deleted: Successfully deleted or already gone
-	//   - NotFound: Resource never existed
-	//   - DeletionInProgress: Has deletionTimestamp but still exists (finalizers)
+	// Delete deletes a resource.
 	Delete(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string) (DeleteResult, error)
 }
 
@@ -92,32 +66,13 @@ func WithControllerName(name hivev1.ControllerName) HelperOption {
 	}
 }
 
-// helper implements Helper using native Kubernetes client APIs.
 type helperImpl struct {
 	client         client.Client
 	logger         log.FieldLogger
 	controllerName hivev1.ControllerName
 }
 
-// NewHelper creates a new helper with Server-Side Apply support.
-//
-// Example usage:
-//
-//	helper, err := resource.NewHelper(
-//	    logger,
-//	    resource.WithClient(remoteClient),
-//	    resource.WithControllerName(hivev1.ClustersyncControllerName),
-//	)
-//
-//	result, err := helper.Apply(ctx, yamlBytes)
-//	switch result.State {
-//	case resource.Created:
-//	    logger.Info("created resource")
-//	case resource.Configured:
-//	    logger.Info("updated resource")
-//	case resource.Unchanged:
-//	    logger.Info("no changes needed")
-//	}
+// NewHelper creates a new resource helper.
 func NewHelper(logger log.FieldLogger, opts ...HelperOption) (Helper, error) {
 	cfg := &helperConfig{
 		logger: logger,
@@ -159,8 +114,6 @@ func NewHelper(logger log.FieldLogger, opts ...HelperOption) (Helper, error) {
 	}, nil
 }
 
-// wrapError wraps an error with cluster and resource context.
-// This is used by all operation methods (Apply, Patch, Delete) to provide consistent error handling.
 func (h *helperImpl) wrapError(err error, operation string, gvk schema.GroupVersionKind, namespace, name string) error {
 	if err == nil {
 		return nil
@@ -176,8 +129,6 @@ func (h *helperImpl) wrapError(err error, operation string, gvk schema.GroupVers
 	)
 }
 
-// recordOperation records operation metrics.
-// This is used by all operation methods to track performance and success rates.
 func (h *helperImpl) recordOperation(operation string, gvk schema.GroupVersionKind, result string, dur float64) {
 	if h.controllerName == "" {
 		return
