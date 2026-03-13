@@ -1,6 +1,8 @@
 package resource
 
 import (
+	"sync"
+
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	controllerutils "github.com/openshift/hive/pkg/controller/utils"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -47,6 +49,10 @@ type kubeconfigClientGetter struct {
 	controllerName hivev1.ControllerName
 	metricsEnabled bool
 	restConfig     *rest.Config
+	// Internal caching to prevent resource leaks
+	discoveryClient discovery.CachedDiscoveryInterface
+	restMapper      meta.RESTMapper
+	mu              sync.Mutex
 }
 
 // ToRESTConfig returns restconfig
@@ -56,26 +62,41 @@ func (r *kubeconfigClientGetter) ToRESTConfig() (*rest.Config, error) {
 
 // ToDiscoveryClient returns discovery client
 func (r *kubeconfigClientGetter) ToDiscoveryClient() (discovery.CachedDiscoveryInterface, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.discoveryClient != nil {
+		return r.discoveryClient, nil
+	}
+
 	config, err := r.ToRESTConfig()
 	if err != nil {
 		return nil, err
 	}
-	return getDiscoveryClient(config, r.cacheDir)
+	r.discoveryClient, err = getDiscoveryClient(config, r.cacheDir)
+	return r.discoveryClient, err
 }
 
 // ToRESTMapper returns a restmapper
 func (r *kubeconfigClientGetter) ToRESTMapper() (meta.RESTMapper, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.restMapper != nil {
+		return r.restMapper, nil
+	}
+
 	discoveryClient, err := r.ToDiscoveryClient()
 	if err != nil {
 		return nil, err
 	}
 
 	mapper := restmapper.NewDeferredDiscoveryRESTMapper(discoveryClient)
-	expander := restmapper.NewShortcutExpander(
+	r.restMapper = restmapper.NewShortcutExpander(
 		mapper, discoveryClient,
 		// TODO: Plumb logger through kubeconfigClientGetter and log warnings here
 		func(string) {})
-	return expander, nil
+	return r.restMapper, nil
 }
 
 // ToRawKubeConfigLoader return kubeconfig loader as-is

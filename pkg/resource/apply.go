@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"sync"
 
 	"github.com/jonboulle/clockwork"
 
@@ -22,6 +23,36 @@ import (
 
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
+
+// Buffer pool to reduce allocations in hot paths
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		return &bytes.Buffer{}
+	},
+}
+
+func getIOStreams() genericclioptions.IOStreams {
+	return genericclioptions.IOStreams{
+		In:     bufferPool.Get().(*bytes.Buffer),
+		Out:    bufferPool.Get().(*bytes.Buffer),
+		ErrOut: bufferPool.Get().(*bytes.Buffer),
+	}
+}
+
+func returnIOStreams(ios genericclioptions.IOStreams) {
+	if buf, ok := ios.In.(*bytes.Buffer); ok {
+		buf.Reset()
+		bufferPool.Put(buf)
+	}
+	if buf, ok := ios.Out.(*bytes.Buffer); ok {
+		buf.Reset()
+		bufferPool.Put(buf)
+	}
+	if buf, ok := ios.ErrOut.(*bytes.Buffer); ok {
+		buf.Reset()
+		bufferPool.Put(buf)
+	}
+}
 
 // ApplyResult indicates what type of change was performed
 // by calling the Apply function
@@ -43,16 +74,14 @@ const (
 
 // Apply applies the given resource bytes to the target cluster specified by kubeconfig
 func (r *helper) Apply(obj []byte) (ApplyResult, error) {
-	factory, err := r.getFactory("")
+	factory, err := r.getFactoryCached("")
 	if err != nil {
 		r.logger.WithError(err).Error("failed to obtain factory for apply")
 		return "", err
 	}
-	ioStreams := genericclioptions.IOStreams{
-		In:     &bytes.Buffer{},
-		Out:    &bytes.Buffer{},
-		ErrOut: &bytes.Buffer{},
-	}
+	ioStreams := getIOStreams()
+	defer returnIOStreams(ioStreams)
+
 	applyOptions, changeTracker, err := r.setupApplyCommand(factory, obj, ioStreams)
 	if err != nil {
 		r.logger.WithError(err).Error("failed to setup apply command")
@@ -80,13 +109,18 @@ func (r *helper) ApplyRuntimeObject(obj runtime.Object, scheme *runtime.Scheme) 
 }
 
 func (r *helper) CreateOrUpdate(obj []byte) (ApplyResult, error) {
-	factory, err := r.getFactory("")
+	factory, err := r.getFactoryCached("")
 	if err != nil {
 		r.logger.WithError(err).Error("failed to obtain factory for apply")
 		return "", err
 	}
 
-	errOut := &bytes.Buffer{}
+	errOut := bufferPool.Get().(*bytes.Buffer)
+	defer func() {
+		errOut.Reset()
+		bufferPool.Put(errOut)
+	}()
+
 	result, err := r.createOrUpdate(factory, obj, errOut)
 	if err != nil {
 		r.logger.WithError(err).
@@ -106,7 +140,7 @@ func (r *helper) CreateOrUpdateRuntimeObject(obj runtime.Object, scheme *runtime
 }
 
 func (r *helper) Create(obj []byte) (ApplyResult, error) {
-	factory, err := r.getFactory("")
+	factory, err := r.getFactoryCached("")
 	if err != nil {
 		r.logger.WithError(err).Error("failed to obtain factory for apply")
 		return "", err

@@ -3,7 +3,6 @@ package resource
 import (
 	"bytes"
 	"fmt"
-	"os"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -22,12 +21,9 @@ var (
 
 // Patch invokes the kubectl patch command with the given resource, patch and patch type
 func (r *helper) Patch(name types.NamespacedName, kind, apiVersion string, patch []byte, patchType string) error {
+	ioStreams := getIOStreams()
+	defer returnIOStreams(ioStreams)
 
-	ioStreams := genericclioptions.IOStreams{
-		In:     &bytes.Buffer{},
-		Out:    &bytes.Buffer{},
-		ErrOut: &bytes.Buffer{},
-	}
 	factory, err := r.getFactory(name.Namespace)
 	if err != nil {
 		return err
@@ -51,12 +47,10 @@ func (r *helper) Patch(name types.NamespacedName, kind, apiVersion string, patch
 }
 
 func (r *helper) setupPatchCommand(name, kind, apiVersion, patchType string, f cmdutil.Factory, patch string, ioStreams genericclioptions.IOStreams) (*kcmdpatch.PatchOptions, error) {
-	// This is bizarre and I don't know why it works, but it's the only way I could figure out
-	// to set the `manager` properly. HIVE-1744.
-	os.Args = []string{
-		"hive7-" + string(r.controllerName),
-	}
 	cmd := kcmdpatch.NewCmdPatch(f, ioStreams)
+	// Set field manager flag before parsing
+	fieldManager := "hive7-" + string(r.controllerName)
+	cmd.Flags().Set("field-manager", fieldManager)
 	cmd.Flags().Parse([]string{})
 
 	gv, err := schema.ParseGroupVersion(apiVersion)
@@ -68,6 +62,7 @@ func (r *helper) setupPatchCommand(name, kind, apiVersion, patchType string, f c
 
 	o := kcmdpatch.NewPatchOptions(ioStreams)
 	o.Complete(f, cmd, args)
+
 	if patchType == "" {
 		patchType = "strategic"
 	}

@@ -21,7 +21,7 @@ type Info struct {
 
 // Info determines the name/namespace and type of the passed in resource bytes
 func (r *helper) Info(obj []byte) (*Info, error) {
-	factory, err := r.getFactory("")
+	factory, err := r.getFactoryCached("")
 	if err != nil {
 		return nil, err
 	}

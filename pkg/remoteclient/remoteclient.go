@@ -204,13 +204,17 @@ func (b *builder) Build() (client.Client, error) {
 		return nil, err
 	}
 	// Verify reachability of client
-	dc, err := discovery.NewDiscoveryClientForConfig(cfg)
-	if err != nil {
-		return nil, err
-	}
-	_, err = restmapper.GetAPIGroupResources(dc)
-	if err != nil {
-		return nil, err
+	// Use block scope to aid garbage collection
+	{
+		dc, err := discovery.NewDiscoveryClientForConfig(cfg)
+		if err != nil {
+			return nil, err
+		}
+		_, err = restmapper.GetAPIGroupResources(dc)
+		if err != nil {
+			return nil, err
+		}
+		// dc falls out of scope here, eligible for GC
 	}
 	c, err := client.New(cfg, client.Options{
 		Scheme: scheme.GetScheme(),

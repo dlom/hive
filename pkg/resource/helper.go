@@ -2,6 +2,7 @@ package resource
 
 import (
 	"os"
+	"sync"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -48,6 +49,9 @@ type helper struct {
 	restConfig     *rest.Config
 	getFactory     func(namespace string) (cmdutil.Factory, error)
 	openAPISchema  openapi.Resources
+	// Cache for default namespace factory (most common case)
+	defaultFactory cmdutil.Factory
+	factoryMu      sync.Mutex
 }
 
 type HelperOpt func(*helper)
@@ -91,6 +95,30 @@ func (r *helper) cacheOpenAPISchema() error {
 		return errors.Wrap(err, "error getting OpenAPISchema")
 	}
 	return nil
+}
+
+// getFactoryCached returns a cached factory for the default (empty) namespace.
+// For non-empty namespaces, creates a new factory each time.
+func (r *helper) getFactoryCached(namespace string) (cmdutil.Factory, error) {
+	if namespace != "" {
+		// Non-default namespace, create new factory
+		return r.getFactory(namespace)
+	}
+
+	// Default namespace - use cached factory
+	r.factoryMu.Lock()
+	defer r.factoryMu.Unlock()
+
+	if r.defaultFactory != nil {
+		return r.defaultFactory, nil
+	}
+
+	f, err := r.getFactory("")
+	if err != nil {
+		return nil, err
+	}
+	r.defaultFactory = f
+	return f, nil
 }
 
 // NewHelper returns a new object that allows apply and patch operations

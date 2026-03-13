@@ -1,6 +1,8 @@
 package resource
 
 import (
+	"sync"
+
 	controllerutils "github.com/openshift/hive/pkg/controller/utils"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/discovery"
@@ -11,14 +13,13 @@ import (
 )
 
 func (r *helper) getRESTConfigFactory(namespace string) (cmdutil.Factory, error) {
+	cfg := r.restConfig
 	if r.metricsEnabled {
-		// Copy the possibly shared restConfig reference and add a metrics wrapper.
-		cfg := rest.CopyConfig(r.restConfig)
+		cfg = rest.CopyConfig(r.restConfig)
 		controllerutils.AddControllerMetricsTransportWrapper(cfg, r.controllerName, false)
-		r.restConfig = cfg
 	}
 	r.logger.WithField("cache-dir", r.cacheDir).Debug("creating cmdutil.Factory from REST client config and cache directory")
-	f := cmdutil.NewFactory(&restConfigClientGetter{restConfig: r.restConfig, cacheDir: r.cacheDir, namespace: namespace})
+	f := cmdutil.NewFactory(&restConfigClientGetter{restConfig: cfg, cacheDir: r.cacheDir, namespace: namespace})
 	return f, nil
 }
 
@@ -26,6 +27,10 @@ type restConfigClientGetter struct {
 	restConfig *rest.Config
 	cacheDir   string
 	namespace  string
+	// Internal caching to prevent resource leaks
+	discoveryClient discovery.CachedDiscoveryInterface
+	restMapper      meta.RESTMapper
+	mu              sync.Mutex
 }
 
 // ToRESTConfig returns restconfig
@@ -35,23 +40,39 @@ func (r *restConfigClientGetter) ToRESTConfig() (*rest.Config, error) {
 
 // ToDiscoveryClient returns discovery client
 func (r *restConfigClientGetter) ToDiscoveryClient() (discovery.CachedDiscoveryInterface, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.discoveryClient != nil {
+		return r.discoveryClient, nil
+	}
+
 	config := rest.CopyConfig(r.restConfig)
-	return getDiscoveryClient(config, r.cacheDir)
+	var err error
+	r.discoveryClient, err = getDiscoveryClient(config, r.cacheDir)
+	return r.discoveryClient, err
 }
 
 // ToRESTMapper returns a restmapper
 func (r *restConfigClientGetter) ToRESTMapper() (meta.RESTMapper, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.restMapper != nil {
+		return r.restMapper, nil
+	}
+
 	discoveryClient, err := r.ToDiscoveryClient()
 	if err != nil {
 		return nil, err
 	}
 
 	mapper := restmapper.NewDeferredDiscoveryRESTMapper(discoveryClient)
-	expander := restmapper.NewShortcutExpander(
+	r.restMapper = restmapper.NewShortcutExpander(
 		mapper, discoveryClient,
 		// TODO: Plumb logger through restconfigClientGetter and log warnings here
 		func(string) {})
-	return expander, nil
+	return r.restMapper, nil
 }
 
 // ToRawKubeConfigLoader return kubeconfig loader as-is
