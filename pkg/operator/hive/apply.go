@@ -129,16 +129,16 @@ func fromBytes(assetBytes []byte) toRuntimeObject {
 // - Executes rtoFactory to produce a runtime object.
 // - Modifies the runtime object according to opts.
 // - Applies the runtime object to the cluster via h.
-func applyRuntimeObject(h resource.Helper, rtoFactory toRuntimeObject, hLog log.FieldLogger, opts ...rtoApplyOpt) (resource.ApplyResult, error) {
+func applyRuntimeObject(h resource.Helper, rtoFactory toRuntimeObject, hLog log.FieldLogger, opts ...rtoApplyOpt) (resource.ApplyState, error) {
 	requiredObj, err := rtoFactory(hLog)
 	if err != nil {
 		hLog.WithError(err).Error("failed to convert to runtime object")
-		return resource.ApplyResult{}, err
+		return 0, err
 	}
 	for _, opt := range opts {
 		if err := opt(requiredObj, hLog); err != nil {
 			hLog.WithError(err).Error("failed to apply option to runtime object")
-			return resource.ApplyResult{}, err
+			return 0, err
 		}
 	}
 	result, err := h.Apply(context.TODO(), requiredObj)

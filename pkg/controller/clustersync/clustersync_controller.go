@@ -903,12 +903,9 @@ func (r *ReconcileClusterSync) applyPatch(
 		return errors.Wrapf(err, "invalid APIVersion %s for patch %d", patch.APIVersion, patchIndex), false
 	}
 
-	// Convert patch type string to types.PatchType
+	// Use Patch for structured results
 	patchType := types.PatchType(patch.PatchType)
-
-	// Use PatchWithObject for structured results
-	_, err = resourceHelper.PatchWithObject(ctx, gvk, patch.Namespace, patch.Name, []byte(patch.Patch),
-		resource.WithPatchType(patchType))
+	_, err = resourceHelper.Patch(ctx, gvk, patch.Namespace, patch.Name, []byte(patch.Patch), patchType)
 	if err != nil {
 		return errors.Wrapf(err, "failed to apply patch %d", patchIndex), true
 	}

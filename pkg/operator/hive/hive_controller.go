@@ -614,7 +614,7 @@ func (r *ReconcileHiveConfig) Reconcile(ctx context.Context, request reconcile.R
 		hLog.Infof("Unlabeling former target namespace %s", ns)
 		gvk := corev1.SchemeGroupVersion.WithKind("Namespace")
 		patch := []byte(fmt.Sprintf(`{"metadata": {"labels": {"%s": null}}}`, targetNamespaceLabel))
-		if _, err := h.PatchWithObject(context.TODO(), gvk, "", ns, patch); err != nil {
+		if _, err := h.Patch(context.TODO(), gvk, "", ns, patch, types.StrategicMergePatchType); err != nil {
 			hLog.WithError(err).Errorf("error unlabeling former target namespace %s", ns)
 			return reconcile.Result{}, err
 		}

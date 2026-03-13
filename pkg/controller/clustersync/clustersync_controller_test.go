@@ -447,7 +447,7 @@ func TestReconcileClusterSync_ApplyPatch(t *testing.T) {
 				var existing []runtime.Object = []runtime.Object{cdBuilder(scheme).Build(), clusterSyncBuilder(scheme).Build(), teststatefulset.FullBuilder("hive", stsName, scheme).Build(teststatefulset.WithCurrentReplicas(3), teststatefulset.WithReplicas(3)), syncSet}
 				return newReconcileTest(mockCtrl, existing...)
 			}()
-			rt.mockResourceHelper.EXPECT().PatchWithObject(gomock.Any(),
+			rt.mockResourceHelper.EXPECT().Patch(gomock.Any(),
 				schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"},
 				"dest-namespace",
 				"dest-name",
@@ -512,7 +512,7 @@ func TestReconcileClusterSync_ApplyAllTypes(t *testing.T) {
 			)
 			rt.mockResourceHelper.EXPECT().Apply(gomock.Any(), newApplyMatcher(resourceToApply)).Return(resource.Created, nil)
 			rt.mockResourceHelper.EXPECT().Apply(gomock.Any(), newApplyMatcher(secretToApply)).Return(resource.Created, nil)
-			rt.mockResourceHelper.EXPECT().PatchWithObject(gomock.Any(),
+			rt.mockResourceHelper.EXPECT().Patch(gomock.Any(),
 				schema.GroupVersionKind{Group: "patch-api", Version: "v1", Kind: "PatchKind"},
 				"patch-namespace",
 				"patch-name",
@@ -925,7 +925,7 @@ func TestReconcileClusterSync_ErrorApplyingPatch(t *testing.T) {
 		var existing []runtime.Object = []runtime.Object{cdBuilder(scheme).Build(), clusterSyncBuilder(scheme).Build(), teststatefulset.FullBuilder("hive", stsName, scheme).Build(teststatefulset.WithCurrentReplicas(3), teststatefulset.WithReplicas(3)), syncSet}
 		return newReconcileTest(mockCtrl, existing...)
 	}()
-	rt.mockResourceHelper.EXPECT().PatchWithObject(gomock.Any(),
+	rt.mockResourceHelper.EXPECT().Patch(gomock.Any(),
 		schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"},
 		"dest-namespace",
 		"dest-name",
@@ -1096,7 +1096,7 @@ func TestReconcileClusterSync_SkipAfterFailingResource(t *testing.T) {
 				patch := patchesToApply[i]
 				gvk := parseAPIVersion(patch.APIVersion, patch.Kind)
 				resourceHelperCalls = append(resourceHelperCalls,
-					rt.mockResourceHelper.EXPECT().PatchWithObject(gomock.Any(),
+					rt.mockResourceHelper.EXPECT().Patch(gomock.Any(),
 						gvk,
 						patch.Namespace,
 						patch.Name,
@@ -1108,7 +1108,7 @@ func TestReconcileClusterSync_SkipAfterFailingResource(t *testing.T) {
 				patch := patchesToApply[tc.successfulPatches]
 				gvk := parseAPIVersion(patch.APIVersion, patch.Kind)
 				resourceHelperCalls = append(resourceHelperCalls,
-					rt.mockResourceHelper.EXPECT().PatchWithObject(gomock.Any(),
+					rt.mockResourceHelper.EXPECT().Patch(gomock.Any(),
 						gvk,
 						patch.Namespace,
 						patch.Name,
@@ -1658,7 +1658,7 @@ func TestReconcileClusterSync_ApplyBehavior(t *testing.T) {
 				rt.mockResourceHelper.EXPECT().Apply(gomock.Any(), newApplyMatcher(resourceToApply)).Return(resource.Created, nil)
 				rt.mockResourceHelper.EXPECT().Apply(gomock.Any(), newApplyMatcher(secretToApply)).Return(resource.Created, nil)
 			}
-			rt.mockResourceHelper.EXPECT().PatchWithObject(gomock.Any(),
+			rt.mockResourceHelper.EXPECT().Patch(gomock.Any(),
 				schema.GroupVersionKind{Group: "patch-api", Version: "v1", Kind: "PatchKind"},
 				"patch-namespace",
 				"patch-name",
@@ -2252,7 +2252,7 @@ spec:
 			}()
 			rt.mockResourceHelper.EXPECT().Apply(gomock.Any(),
 				newYamlApplyMatcher(t, tc.expectedResourceApplied)).Return(resource.Created, nil)
-			rt.mockResourceHelper.EXPECT().PatchWithObject(gomock.Any(), schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"},
+			rt.mockResourceHelper.EXPECT().Patch(gomock.Any(), schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"},
 				"default", "mycm",
 				newByteMatcher(tc.expectedPatchApplied),
 				gomock.Any()).

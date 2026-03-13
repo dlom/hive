@@ -139,11 +139,6 @@ data:
 		assert.Equal(t, Created, result)
 	})
 
-	t.Run("implements Patch method", func(t *testing.T) {
-		// Verify method exists
-		assert.NotNil(t, helper.Patch)
-	})
-
 	t.Run("implements Delete method", func(t *testing.T) {
 		// Verify method exists
 		assert.NotNil(t, helper.Delete)

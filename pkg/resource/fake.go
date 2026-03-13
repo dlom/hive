@@ -7,6 +7,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // fakeHelper is a no-op Helper for scale testing fake clusters.
@@ -31,7 +32,7 @@ func (h *fakeHelper) Apply(ctx context.Context, obj interface{}) (ApplyState, er
 	return Configured, nil
 }
 
-func (h *fakeHelper) Patch(ctx context.Context, obj interface{}, patch []byte, opts ...PatchOption) (PatchState, error) {
+func (h *fakeHelper) Patch(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, patch []byte, patchType types.PatchType) (PatchState, error) {
 	select {
 	case <-ctx.Done():
 		return 0, ctx.Err()
@@ -40,10 +41,6 @@ func (h *fakeHelper) Patch(ctx context.Context, obj interface{}, patch []byte, o
 
 	h.fakePatchSleep()
 	return Patched, nil
-}
-
-func (h *fakeHelper) PatchWithObject(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, patch []byte, opts ...PatchOption) (PatchState, error) {
-	return h.Patch(ctx, nil, patch, opts...)
 }
 
 func (h *fakeHelper) Delete(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string) (DeleteState, error) {

@@ -6,6 +6,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -21,11 +22,8 @@ type Helper interface {
 	// Accepts []byte (YAML/JSON) or runtime.Object.
 	Apply(ctx context.Context, obj interface{}) (ApplyState, error)
 
-	// Patch patches a resource using the specified patch type.
-	Patch(ctx context.Context, obj interface{}, patch []byte, opts ...PatchOption) (PatchState, error)
-
-	// PatchWithObject patches a resource by GVK, namespace, and name.
-	PatchWithObject(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, patch []byte, opts ...PatchOption) (PatchState, error)
+	// Patch patches a resource by GVK, namespace, and name.
+	Patch(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, patch []byte, patchType types.PatchType) (PatchState, error)
 
 	// Delete deletes a resource.
 	Delete(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string) (DeleteState, error)

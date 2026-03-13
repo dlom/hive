@@ -11,6 +11,7 @@ import (
 	gomock "github.com/golang/mock/gomock"
 	resource "github.com/openshift/hive/pkg/resource"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
+	types "k8s.io/apimachinery/pkg/types"
 )
 
 // MockHelper is a mock of Helper interface.
@@ -67,41 +68,16 @@ func (mr *MockHelperMockRecorder) Delete(ctx, gvk, namespace, name interface{}) 
 }
 
 // Patch mocks base method.
-func (m *MockHelper) Patch(ctx context.Context, obj interface{}, patch []byte, opts ...resource.PatchOption) (resource.PatchState, error) {
+func (m *MockHelper) Patch(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, patch []byte, patchType types.PatchType) (resource.PatchState, error) {
 	m.ctrl.T.Helper()
-	varargs := []interface{}{ctx, obj, patch}
-	for _, a := range opts {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "Patch", varargs...)
+	ret := m.ctrl.Call(m, "Patch", ctx, gvk, namespace, name, patch, patchType)
 	ret0, _ := ret[0].(resource.PatchState)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Patch indicates an expected call of Patch.
-func (mr *MockHelperMockRecorder) Patch(ctx, obj, patch interface{}, opts ...interface{}) *gomock.Call {
+func (mr *MockHelperMockRecorder) Patch(ctx, gvk, namespace, name, patch, patchType interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{ctx, obj, patch}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Patch", reflect.TypeOf((*MockHelper)(nil).Patch), varargs...)
-}
-
-// PatchWithObject mocks base method.
-func (m *MockHelper) PatchWithObject(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, patch []byte, opts ...resource.PatchOption) (resource.PatchState, error) {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{ctx, gvk, namespace, name, patch}
-	for _, a := range opts {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "PatchWithObject", varargs...)
-	ret0, _ := ret[0].(resource.PatchState)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// PatchWithObject indicates an expected call of PatchWithObject.
-func (mr *MockHelperMockRecorder) PatchWithObject(ctx, gvk, namespace, name, patch interface{}, opts ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{ctx, gvk, namespace, name, patch}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PatchWithObject", reflect.TypeOf((*MockHelper)(nil).PatchWithObject), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Patch", reflect.TypeOf((*MockHelper)(nil).Patch), ctx, gvk, namespace, name, patch, patchType)
 }
