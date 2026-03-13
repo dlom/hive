@@ -5,13 +5,16 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	"github.com/openshift/hive/internal/clientutil"
+	"github.com/openshift/hive/pkg/remoteclient"
 )
 
 // InitialURL returns the API URL from the ClusterDeployment's kubeconfig secret.
@@ -64,6 +67,31 @@ func SetUnreachableCondition(cd *hivev1.ClusterDeployment, connectionError error
 		updateCheck,
 	)
 	return
+}
+
+// ConnectToRemoteCluster attempts to build a remote client and handles the unreachable condition.
+// Returns (client, shouldContinue, result, error) where:
+// - client is nil if connection failed
+// - shouldContinue is false if the caller should return immediately
+// - result and error are the reconcile return values to use if shouldContinue is false
+func ConnectToRemoteCluster(
+	ctx context.Context,
+	c client.Client,
+	cd *hivev1.ClusterDeployment,
+	builder func(*hivev1.ClusterDeployment) remoteclient.Builder,
+	logger log.FieldLogger,
+) (client.Client, bool, reconcile.Result, error) {
+	remoteClient, err := builder(cd).BuildWithContext(ctx)
+	if err != nil {
+		logger.WithError(err).Info("remote cluster is unreachable")
+		SetUnreachableCondition(cd, err)
+		if updateErr := c.Status().Update(ctx, cd); updateErr != nil {
+			logger.WithError(updateErr).Log(LogLevel(updateErr), "could not update clusterdeployment with unreachable condition")
+			return nil, false, reconcile.Result{Requeue: true}, nil
+		}
+		return nil, false, reconcile.Result{}, nil
+	}
+	return remoteClient, true, reconcile.Result{}, nil
 }
 
 // unadulteratedRESTConfig returns the REST config directly from the kubeconfig secret

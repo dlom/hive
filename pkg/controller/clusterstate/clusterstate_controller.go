@@ -214,19 +214,14 @@ func (r *ReconcileClusterState) Reconcile(ctx context.Context, request reconcile
 
 	clusterOperators := &configv1.ClusterOperatorList{}
 
-	// Connect to remote cluster
-	remoteClient, err := r.remoteClusterAPIClientBuilder(cd).BuildWithContext(context.Background())
-	if err != nil {
-		logger.WithError(err).Info("remote cluster is unreachable")
-		controllerutils.SetUnreachableCondition(cd, err)
-		if updateErr := r.Client.Status().Update(context.Background(), cd); updateErr != nil {
-			logger.WithError(updateErr).Log(controllerutils.LogLevel(updateErr), "could not update clusterdeployment with unreachable condition")
-			return reconcile.Result{Requeue: true}, nil
-		}
-		return reconcile.Result{}, nil
+	remoteClient, shouldContinue, result, err := controllerutils.ConnectToRemoteCluster(
+		ctx, r.Client, cd, r.remoteClusterAPIClientBuilder, logger,
+	)
+	if !shouldContinue {
+		return result, err
 	}
 
-	err = remoteClient.List(context.TODO(), clusterOperators)
+	err = remoteClient.List(ctx, clusterOperators)
 	if err != nil {
 		logger.WithError(err).Error("failed to list target cluster operators")
 		return reconcile.Result{}, err

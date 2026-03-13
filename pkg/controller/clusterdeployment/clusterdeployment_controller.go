@@ -1633,16 +1633,11 @@ func (r *ReconcileClusterDeployment) setClusterStatusURLs(cd *hivev1.ClusterDepl
 		return reconcile.Result{}, nil
 	}
 
-	// Connect to remote cluster
-	remoteClient, err := r.remoteClusterAPIClientBuilder(cd).BuildWithContext(context.Background())
-	if err != nil {
-		cdLog.WithError(err).Info("remote cluster is unreachable")
-		controllerutils.SetUnreachableCondition(cd, err)
-		if updateErr := r.Client.Status().Update(context.Background(), cd); updateErr != nil {
-			cdLog.WithError(updateErr).Log(controllerutils.LogLevel(updateErr), "could not update clusterdeployment with unreachable condition")
-			return reconcile.Result{Requeue: true}, nil
-		}
-		return reconcile.Result{}, nil
+	remoteClient, shouldContinue, result, err := controllerutils.ConnectToRemoteCluster(
+		context.Background(), r.Client, cd, r.remoteClusterAPIClientBuilder, cdLog,
+	)
+	if !shouldContinue {
+		return result, err
 	}
 
 	var requeueAfter time.Duration
