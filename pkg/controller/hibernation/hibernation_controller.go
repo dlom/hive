@@ -110,7 +110,6 @@ type hibernationReconciler struct {
 	logger  log.FieldLogger
 	csrUtil csrHelper
 
-	// clientCache provides shared client caching for 92-97% faster operations
 	clientCache clientutil.ClientCache
 
 	// remoteClientBuilder is a function pointer to the function that gets a builder for building a client
@@ -122,8 +121,6 @@ type hibernationReconciler struct {
 func NewReconciler(mgr manager.Manager, rateLimiter flowcontrol.RateLimiter) *hibernationReconciler {
 	logger := log.WithField("controller", ControllerName)
 
-	// Use shared client cache across all controllers
-	// Provides 92-97% faster operations through client caching
 	sharedCache := clientutil.GetSharedCache(ControllerName)
 
 	r := &hibernationReconciler{

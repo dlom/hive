@@ -55,8 +55,6 @@ func Add(mgr manager.Manager) error {
 func NewReconciler(mgr manager.Manager, rateLimiter flowcontrol.RateLimiter) reconcile.Reconciler {
 	logger := log.WithField("controller", ControllerName)
 
-	// Use shared client cache across all controllers
-	// Provides 92-97% faster operations through client caching
 	sharedCache := clientutil.GetSharedCache(ControllerName)
 
 	r := &ReconcileClusterState{
@@ -104,7 +102,6 @@ type ReconcileClusterState struct {
 	scheme *runtime.Scheme
 	logger log.FieldLogger
 
-	// clientCache provides shared client caching for 92-97% faster operations
 	clientCache clientutil.ClientCache
 
 	// remoteClusterAPIClientBuilder is a function pointer to the function that gets a builder for building a client

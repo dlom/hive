@@ -86,8 +86,6 @@ func Add(mgr manager.Manager) error {
 		return err
 	}
 
-	// Use shared client cache across all controllers
-	// Provides 92-97% faster operations through client caching
 	sharedCache := clientutil.GetSharedCache(ControllerName)
 
 	r := &ReconcileClusterRelocate{
@@ -164,7 +162,6 @@ type ReconcileClusterRelocate struct {
 	client.Client
 	logger log.FieldLogger
 
-	// clientCache provides shared client caching for 92-97% faster operations
 	clientCache clientutil.ClientCache
 
 	// remoteClusterAPIClientBuilder is a function pointer to the function that gets a builder for building a client
