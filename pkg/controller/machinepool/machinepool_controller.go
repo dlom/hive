@@ -228,7 +228,7 @@ func (r *ReconcileMachinePool) Reconcile(ctx context.Context, request reconcile.
 
 	// Fetch the MachinePool instance
 	pool := &hivev1.MachinePool{}
-	if err := r.Get(context.TODO(), request.NamespacedName, pool); err != nil {
+	if err := r.Get(ctx, request.NamespacedName, pool); err != nil {
 		if apierrors.IsNotFound(err) {
 			// Object not found, return
 			r.logger.Debug("object no longer exists")
@@ -263,7 +263,7 @@ func (r *ReconcileMachinePool) Reconcile(ctx context.Context, request reconcile.
 	if changed {
 		pool.Status.Conditions = newConditions
 		logger.Info("initializing remote machineset controller conditions")
-		if err := r.Status().Update(context.TODO(), pool); err != nil {
+		if err := r.Status().Update(ctx, pool); err != nil {
 			logger.WithError(err).Log(controllerutils.LogLevel(err), "failed to update machine pool status")
 			return reconcile.Result{}, err
 		}
@@ -283,7 +283,7 @@ func (r *ReconcileMachinePool) Reconcile(ctx context.Context, request reconcile.
 
 	cd := &hivev1.ClusterDeployment{}
 	switch err := r.Get(
-		context.TODO(),
+		ctx,
 		client.ObjectKey{Namespace: pool.Namespace, Name: pool.Spec.ClusterDeploymentRef.Name},
 		cd,
 	); {

@@ -128,7 +128,7 @@ func (r *ReconcileClusterVersion) Reconcile(ctx context.Context, request reconci
 
 	// Fetch the ClusterDeployment instance
 	cd := &hivev1.ClusterDeployment{}
-	err := r.Get(context.TODO(), request.NamespacedName, cd)
+	err := r.Get(ctx, request.NamespacedName, cd)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			// Object not found, return.  Created objects are automatically garbage collected.

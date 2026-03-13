@@ -385,7 +385,7 @@ func (r *ReconcileClusterDeployment) Reconcile(ctx context.Context, request reco
 
 	// Fetch the ClusterDeployment instance
 	cd := &hivev1.ClusterDeployment{}
-	err := r.Get(context.TODO(), request.NamespacedName, cd)
+	err := r.Get(ctx, request.NamespacedName, cd)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			// Object not found, return.  Created objects are automatically garbage collected.
@@ -417,7 +417,7 @@ func (r *ReconcileClusterDeployment) Reconcile(ctx context.Context, request reco
 	if changed {
 		cd.Status.Conditions = newConditions
 		cdLog.Info("initializing cluster deployment controller conditions")
-		if err := r.Status().Update(context.TODO(), cd); err != nil {
+		if err := r.Status().Update(ctx, cd); err != nil {
 			cdLog.WithError(err).Log(controllerutils.LogLevel(err), "failed to update cluster deployment status")
 			return reconcile.Result{}, err
 		}
@@ -447,7 +447,7 @@ func (r *ReconcileClusterDeployment) Reconcile(ctx context.Context, request reco
 	}
 	if removedLegacyConditions {
 		cd.Status.Conditions = newConditions
-		if err := r.Status().Update(context.TODO(), cd); err != nil {
+		if err := r.Status().Update(ctx, cd); err != nil {
 			cdLog.WithError(err).Log(controllerutils.LogLevel(err), "failed to update cluster deployment status")
 			return reconcile.Result{}, err
 		}

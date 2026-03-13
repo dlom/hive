@@ -140,7 +140,7 @@ func (r *ReconcileRemoteMachineSet) Reconcile(ctx context.Context, request recon
 	defer recobsrv.ObserveControllerReconcileTime()
 
 	cd := &hivev1.ClusterDeployment{}
-	err := r.Get(context.TODO(), request.NamespacedName, cd)
+	err := r.Get(ctx, request.NamespacedName, cd)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return reconcile.Result{}, nil
@@ -162,7 +162,7 @@ func (r *ReconcileRemoteMachineSet) Reconcile(ctx context.Context, request recon
 	if changed {
 		cd.Status.Conditions = newConditions
 		cdLog.Info("initializing unreachable controller conditions")
-		if err := r.Status().Update(context.TODO(), cd); err != nil {
+		if err := r.Status().Update(ctx, cd); err != nil {
 			cdLog.WithError(err).Log(controllerutils.LogLevel(err), "failed to update cluster deployment status")
 			return reconcile.Result{}, err
 		}
@@ -277,7 +277,7 @@ func (r *ReconcileRemoteMachineSet) Reconcile(ctx context.Context, request recon
 		}
 	}
 
-	err = r.Status().Update(context.TODO(), cd)
+	err = r.Status().Update(ctx, cd)
 	if err != nil {
 		cdLog.WithError(err).Log(controllerutils.LogLevel(err), "error updating cluster deployment with unreachable condition")
 	}

@@ -121,7 +121,7 @@ func (r *ReconcileClusterState) Reconcile(ctx context.Context, request reconcile
 
 	// Fetch the ClusterDeployment instance
 	cd := &hivev1.ClusterDeployment{}
-	err := r.Get(context.TODO(), request.NamespacedName, cd)
+	err := r.Get(ctx, request.NamespacedName, cd)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			// Object not found, return.  Created objects are automatically garbage collected.
@@ -174,7 +174,7 @@ func (r *ReconcileClusterState) Reconcile(ctx context.Context, request reconcile
 
 	// Fetch corresponding ClusterState instance
 	st := &hivev1.ClusterState{}
-	switch err = r.Get(context.TODO(), request.NamespacedName, st); {
+	switch err = r.Get(ctx, request.NamespacedName, st); {
 	case apierrors.IsNotFound(err):
 		logger.Info("Creating cluster state resource for cluster deployment")
 		st.Name = cd.Name
@@ -186,7 +186,7 @@ func (r *ReconcileClusterState) Reconcile(ctx context.Context, request reconcile
 			logger.WithError(err).Error("error setting controller reference on cluster state")
 			return reconcile.Result{}, err
 		}
-		err = r.Create(context.TODO(), st)
+		err = r.Create(ctx, st)
 		if err != nil {
 			logger.WithError(err).Log(controllerutils.LogLevel(err), "failed to create cluster state")
 			return reconcile.Result{}, err
