@@ -1,19 +1,8 @@
 package resource
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
-
-// applyOptions configures Apply operations.
-type applyOptions struct {
-	fieldManager string
-	force        bool
-	dryRun       bool
-}
-
-// ApplyOption is a functional option for configuring Apply operations.
-type ApplyOption func(*applyOptions)
 
 // patchOptions configures Patch operations.
 type patchOptions struct {
@@ -35,13 +24,3 @@ func WithPatchType(pt types.PatchType) PatchOption {
 		opts.patchType = pt
 	}
 }
-
-// deleteOptions configures Delete operations.
-type deleteOptions struct {
-	gracePeriodSeconds *int64
-	propagationPolicy  *metav1.DeletionPropagation
-	wait               bool
-}
-
-// DeleteOption is a functional option for configuring Delete operations.
-type DeleteOption func(*deleteOptions)

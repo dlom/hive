@@ -22,7 +22,7 @@ func NewFakeHelper(logger log.FieldLogger) Helper {
 	}
 }
 
-func (h *fakeHelper) Apply(ctx context.Context, obj interface{}, opts ...ApplyOption) (ApplyResult, error) {
+func (h *fakeHelper) Apply(ctx context.Context, obj interface{}) (ApplyResult, error) {
 	// Check context cancellation
 	select {
 	case <-ctx.Done():
@@ -62,7 +62,7 @@ func (h *fakeHelper) PatchWithObject(ctx context.Context, gvk schema.GroupVersio
 	return h.Patch(ctx, nil, patch, opts...)
 }
 
-func (h *fakeHelper) Delete(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, opts ...DeleteOption) (DeleteResult, error) {
+func (h *fakeHelper) Delete(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string) (DeleteResult, error) {
 	// Check context cancellation
 	select {
 	case <-ctx.Done():

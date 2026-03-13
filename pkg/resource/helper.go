@@ -35,7 +35,7 @@ type Helper interface {
 	//   - Created: Resource was created
 	//   - Configured: Resource was updated
 	//   - Unchanged: Resource already in desired state
-	Apply(ctx context.Context, obj interface{}, opts ...ApplyOption) (ApplyResult, error)
+	Apply(ctx context.Context, obj interface{}) (ApplyResult, error)
 
 	// Patch patches the given resource using the specified patch type.
 	// Accepts both []byte patch data and runtime.Object.
@@ -54,7 +54,7 @@ type Helper interface {
 	//   - Deleted: Successfully deleted or already gone
 	//   - NotFound: Resource never existed
 	//   - DeletionInProgress: Has deletionTimestamp but still exists (finalizers)
-	Delete(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, opts ...DeleteOption) (DeleteResult, error)
+	Delete(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string) (DeleteResult, error)
 }
 
 // helperConfig holds the configuration for a Helper.

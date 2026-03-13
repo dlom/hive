@@ -762,7 +762,7 @@ type fakeKubeCLI struct {
 	createdSyncSet createdSyncSetInfo
 }
 
-func (f *fakeKubeCLI) Apply(ctx context.Context, obj interface{}, opts ...resource.ApplyOption) (resource.ApplyResult, error) {
+func (f *fakeKubeCLI) Apply(ctx context.Context, obj interface{}) (resource.ApplyResult, error) {
 	ss := obj.(*hivev1.SyncSet)
 	created := createdSyncSetInfo{
 		name:      ss.Name,

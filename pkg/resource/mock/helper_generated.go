@@ -37,43 +37,33 @@ func (m *MockHelper) EXPECT() *MockHelperMockRecorder {
 }
 
 // Apply mocks base method.
-func (m *MockHelper) Apply(ctx context.Context, obj interface{}, opts ...resource.ApplyOption) (resource.ApplyResult, error) {
+func (m *MockHelper) Apply(ctx context.Context, obj interface{}) (resource.ApplyResult, error) {
 	m.ctrl.T.Helper()
-	varargs := []interface{}{ctx, obj}
-	for _, a := range opts {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "Apply", varargs...)
+	ret := m.ctrl.Call(m, "Apply", ctx, obj)
 	ret0, _ := ret[0].(resource.ApplyResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Apply indicates an expected call of Apply.
-func (mr *MockHelperMockRecorder) Apply(ctx, obj interface{}, opts ...interface{}) *gomock.Call {
+func (mr *MockHelperMockRecorder) Apply(ctx, obj interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{ctx, obj}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Apply", reflect.TypeOf((*MockHelper)(nil).Apply), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Apply", reflect.TypeOf((*MockHelper)(nil).Apply), ctx, obj)
 }
 
 // Delete mocks base method.
-func (m *MockHelper) Delete(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, opts ...resource.DeleteOption) (resource.DeleteResult, error) {
+func (m *MockHelper) Delete(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string) (resource.DeleteResult, error) {
 	m.ctrl.T.Helper()
-	varargs := []interface{}{ctx, gvk, namespace, name}
-	for _, a := range opts {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "Delete", varargs...)
+	ret := m.ctrl.Call(m, "Delete", ctx, gvk, namespace, name)
 	ret0, _ := ret[0].(resource.DeleteResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Delete indicates an expected call of Delete.
-func (mr *MockHelperMockRecorder) Delete(ctx, gvk, namespace, name interface{}, opts ...interface{}) *gomock.Call {
+func (mr *MockHelperMockRecorder) Delete(ctx, gvk, namespace, name interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{ctx, gvk, namespace, name}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockHelper)(nil).Delete), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockHelper)(nil).Delete), ctx, gvk, namespace, name)
 }
 
 // Patch mocks base method.

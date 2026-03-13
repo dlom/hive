@@ -25,7 +25,6 @@ func TestHelper_Delete(t *testing.T) {
 		namespace string
 		objName   string
 		existing  []runtime.Object
-		options   []DeleteOption
 		wantState DeleteState
 		wantErr   bool
 	}{
@@ -73,7 +72,7 @@ func TestHelper_Delete(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute delete
-			result, err := helper.Delete(ctx, tt.gvk, tt.namespace, tt.objName, tt.options...)
+			result, err := helper.Delete(ctx, tt.gvk, tt.namespace, tt.objName)
 
 			// Verify error expectations
 			if tt.wantErr {

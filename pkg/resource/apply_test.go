@@ -34,7 +34,6 @@ func TestHelper_Apply(t *testing.T) {
 		name      string
 		input     interface{}
 		existing  []runtime.Object
-		options   []ApplyOption
 		wantState ApplyState
 		wantErr   bool
 		errCheck  func(*testing.T, error)
@@ -217,7 +216,7 @@ metadata:
 			require.NoError(t, err)
 
 			// Execute apply
-			result, err := helper.Apply(ctx, tt.input, tt.options...)
+			result, err := helper.Apply(ctx, tt.input)
 
 			// Verify error expectations
 			if tt.wantErr {

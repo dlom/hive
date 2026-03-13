@@ -66,7 +66,7 @@ var clusterDeploymentRemoteIngressConditions = []hivev1.ClusterDeploymentConditi
 
 // kubeCLIApplier knows how to Apply runtime objects.
 type kubeCLIApplier interface {
-	Apply(ctx context.Context, obj interface{}, opts ...resource.ApplyOption) (resource.ApplyResult, error)
+	Apply(ctx context.Context, obj interface{}) (resource.ApplyResult, error)
 }
 
 // Add creates a new RemoteIngress Controller and adds it to the Manager with default RBAC. The Manager will set fields on the

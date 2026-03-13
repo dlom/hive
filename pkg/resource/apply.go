@@ -28,18 +28,8 @@ import (
 //   - Automatic field ownership tracking
 //   - No client-side three-way merge
 //   - No OpenAPI schema required
-func (h *helperImpl) Apply(ctx context.Context, obj interface{}, opts ...ApplyOption) (ApplyResult, error) {
+func (h *helperImpl) Apply(ctx context.Context, obj interface{}) (ApplyResult, error) {
 	startTime := time.Now()
-
-	// Parse options
-	options := applyOptions{
-		fieldManager: clientutil.FieldManagerName(h.controllerName),
-		force:        false,
-		dryRun:       false,
-	}
-	for _, opt := range opts {
-		opt(&options)
-	}
 
 	// Convert input to unstructured
 	unstructuredObj, gvk, err := h.toUnstructured(obj)
@@ -67,19 +57,7 @@ func (h *helperImpl) Apply(ctx context.Context, obj interface{}, opts ...ApplyOp
 	// Prepare patch options
 	patchOpts := []client.PatchOption{
 		client.ForceOwnership, // Always use force ownership for Server-Side Apply
-		client.FieldOwner(options.fieldManager),
-	}
-
-	if options.force {
-		// Force takes ownership of fields from other managers
-		force := true
-		patchOpts = append(patchOpts, &client.PatchOptions{
-			Force: &force,
-		})
-	}
-
-	if options.dryRun {
-		patchOpts = append(patchOpts, client.DryRunAll)
+		client.FieldOwner(clientutil.FieldManagerName(h.controllerName)),
 	}
 
 	// Apply using Server-Side Apply
