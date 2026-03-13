@@ -414,7 +414,6 @@ func (r *ReconcileClusterSync) Reconcile(ctx context.Context, request reconcile.
 	recobsrv.SetOutcome(hivemetrics.ReconcileOutcomeFullSync)
 
 	// Apply SyncSets
-	// Pass context to applySyncSets
 	syncStatusesForSyncSets, syncSetsNeedRequeue := r.applySyncSets(
 		ctx,
 		cd,
@@ -429,7 +428,6 @@ func (r *ReconcileClusterSync) Reconcile(ctx context.Context, request reconcile.
 	clusterSync.Status.SyncSets = syncStatusesForSyncSets
 
 	// Apply SelectorSyncSets
-	// Pass context to applySyncSets
 	syncStatusesForSelectorSyncSets, selectorSyncSetsNeedRequeue := r.applySyncSets(
 		ctx,
 		cd,
@@ -566,7 +564,6 @@ func (r *ReconcileClusterSync) applySyncSets(
 		}
 
 		// Apply the syncset
-		// Pass context to applySyncSet
 		resourcesApplied, resourcesInSyncSet, syncSetNeedsRequeue, err := r.applySyncSet(ctx, syncSet, cd, resourceHelper, logger)
 		newSyncStatus := hiveintv1alpha1.SyncStatus{
 			Name:               syncSet.AsMetaObject().GetName(),
