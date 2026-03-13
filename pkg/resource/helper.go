@@ -35,6 +35,7 @@ type helperConfig struct {
 	restConfig     *rest.Config
 	logger         log.FieldLogger
 	controllerName hivev1.ControllerName
+	clusterID      string
 }
 
 // HelperOption is a functional option for configuring a Helper.
@@ -64,10 +65,19 @@ func WithControllerName(name hivev1.ControllerName) HelperOption {
 	}
 }
 
+// WithClusterID sets the cluster identifier for error reporting.
+// Typically formatted as "namespace/name" of the ClusterDeployment.
+func WithClusterID(clusterID string) HelperOption {
+	return func(cfg *helperConfig) {
+		cfg.clusterID = clusterID
+	}
+}
+
 type helperImpl struct {
 	client         client.Client
 	logger         log.FieldLogger
 	controllerName hivev1.ControllerName
+	clusterID      string
 }
 
 // NewHelper creates a new resource helper.
@@ -109,6 +119,7 @@ func NewHelper(logger log.FieldLogger, opts ...HelperOption) (Helper, error) {
 		client:         cfg.client,
 		logger:         logger,
 		controllerName: cfg.controllerName,
+		clusterID:      cfg.clusterID,
 	}, nil
 }
 
@@ -117,9 +128,14 @@ func (h *helperImpl) wrapError(err error, operation string, gvk schema.GroupVers
 		return nil
 	}
 
+	clusterID := h.clusterID
+	if clusterID == "" {
+		clusterID = "unknown"
+	}
+
 	return clientutil.WrapClusterError(
 		err,
-		"remote-cluster", // ClusterID would come from context in real usage
+		clusterID,
 		operation,
 		gvk,
 		namespace,

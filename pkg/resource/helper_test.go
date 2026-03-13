@@ -106,6 +106,19 @@ func TestHelperOptions(t *testing.T) {
 		h := helper.(*helperImpl)
 		assert.Equal(t, controllerName, h.controllerName)
 	})
+
+	t.Run("WithClusterID option", func(t *testing.T) {
+		clusterID := "test-namespace/test-cluster"
+		helper, err := NewHelper(logger,
+			WithClient(newFakeClient()),
+			WithClusterID(clusterID),
+		)
+		require.NoError(t, err)
+		assert.NotNil(t, helper)
+
+		h := helper.(*helperImpl)
+		assert.Equal(t, clusterID, h.clusterID)
+	})
 }
 
 func TestHelperInterface(t *testing.T) {
@@ -206,6 +219,45 @@ metadata:
 	for i := 0; i < 10; i++ {
 		<-done
 	}
+}
+
+func TestHelperErrorWrapping(t *testing.T) {
+	logger := log.NewEntry(log.StandardLogger())
+	ctx := context.Background()
+
+	t.Run("includes clusterID in error messages", func(t *testing.T) {
+		clusterID := "test-namespace/test-cluster"
+		helper, err := NewHelper(logger,
+			WithClient(newFakeClient()),
+			WithClusterID(clusterID),
+		)
+		require.NoError(t, err)
+
+		// Try to delete a non-existent resource (will trigger error wrapping)
+		gvk := hivev1.SchemeGroupVersion.WithKind("ClusterDeployment")
+		_, err = helper.Delete(ctx, gvk, "default", "non-existent")
+
+		// Error should contain the clusterID
+		if err != nil {
+			assert.Contains(t, err.Error(), clusterID, "error message should include cluster ID")
+		}
+	})
+
+	t.Run("uses 'unknown' when clusterID not provided", func(t *testing.T) {
+		helper, err := NewHelper(logger,
+			WithClient(newFakeClient()),
+		)
+		require.NoError(t, err)
+
+		// Try to delete a non-existent resource
+		gvk := hivev1.SchemeGroupVersion.WithKind("ClusterDeployment")
+		_, err = helper.Delete(ctx, gvk, "default", "non-existent")
+
+		// Error should contain "unknown" as fallback
+		if err != nil {
+			assert.Contains(t, err.Error(), "unknown", "error message should use 'unknown' as fallback")
+		}
+	})
 }
 
 // newFakeClient creates a fake controller-runtime client for testing.

@@ -188,9 +188,11 @@ func resourceHelperBuilderFunc(
 	}
 
 	// Create helper directly from client (no REST config needed)
+	clusterID := fmt.Sprintf("%s/%s", cd.Namespace, cd.Name)
 	return resource.NewHelper(logger,
 		resource.WithClient(remoteClient),
-		resource.WithControllerName(ControllerName))
+		resource.WithControllerName(ControllerName),
+		resource.WithClusterID(clusterID))
 }
 
 // AddToManager adds a new Controller to mgr with r as the reconcile.Reconciler
