@@ -940,7 +940,7 @@ func applyToTargetCluster(
 		metricResourcesApplied.WithLabelValues(applyFnMetricLabel, metricResultError).Inc()
 		metricTimeToApplySyncSetResource.WithLabelValues(applyFnMetricLabel, metricResultError).Observe(applyTime)
 	} else {
-		logger.WithField("applyResult", result.State.String()).Debug("resource applied")
+		logger.WithField("applyResult", result.String()).Debug("resource applied")
 		metricResourcesApplied.WithLabelValues(applyFnMetricLabel, metricResultSuccess).Inc()
 		metricTimeToApplySyncSetResource.WithLabelValues(applyFnMetricLabel, metricResultSuccess).Observe(applyTime)
 	}
@@ -981,8 +981,7 @@ func deleteFromTargetCluster(
 			logger.WithError(err).Warn("could not delete resource")
 			allErrs = append(allErrs, fmt.Errorf("failed to delete %s, Kind=%s %s/%s: %w", r.APIVersion, r.Kind, r.Namespace, r.Name, err))
 			remainingResources = append(remainingResources, r)
-		} else if result.State == resource.DeletionInProgress {
-			// Resource has finalizers, still deleting
+		} else if result == resource.DeletionInProgress {
 			logger.Debug("resource deletion in progress (finalizers present)")
 			remainingResources = append(remainingResources, r)
 		}

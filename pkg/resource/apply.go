@@ -17,12 +17,12 @@ import (
 	"github.com/openshift/hive/pkg/util/scheme"
 )
 
-func (h *helperImpl) Apply(ctx context.Context, obj interface{}) (ApplyResult, error) {
+func (h *helperImpl) Apply(ctx context.Context, obj interface{}) (ApplyState, error) {
 	startTime := time.Now()
 
 	unstructuredObj, gvk, err := h.toUnstructured(obj)
 	if err != nil {
-		return ApplyResult{}, h.wrapError(err, "parse-object", gvk, "", "")
+		return 0, h.wrapError(err, "parse-object", gvk, "", "")
 	}
 
 	existingObj := &unstructured.Unstructured{}
@@ -33,7 +33,7 @@ func (h *helperImpl) Apply(ctx context.Context, obj interface{}) (ApplyResult, e
 	var existingResourceVersion string
 	if err := h.client.Get(ctx, objectKey, existingObj); err != nil {
 		if !apierrors.IsNotFound(err) {
-			return ApplyResult{}, h.wrapError(err, "get-existing", gvk, objectKey.Namespace, objectKey.Name)
+			return 0, h.wrapError(err, "get-existing", gvk, objectKey.Namespace, objectKey.Name)
 		}
 	} else {
 		exists = true
@@ -47,8 +47,7 @@ func (h *helperImpl) Apply(ctx context.Context, obj interface{}) (ApplyResult, e
 
 	if err := h.client.Patch(ctx, unstructuredObj, client.Apply, patchOpts...); err != nil {
 		h.recordOperation("apply", gvk, "failure", time.Since(startTime).Seconds())
-
-		return ApplyResult{}, h.wrapError(err, "apply", gvk, objectKey.Namespace, objectKey.Name)
+		return 0, h.wrapError(err, "apply", gvk, objectKey.Namespace, objectKey.Name)
 	}
 
 	var state ApplyState
@@ -61,10 +60,7 @@ func (h *helperImpl) Apply(ctx context.Context, obj interface{}) (ApplyResult, e
 	}
 
 	h.recordOperation("apply", gvk, "success", time.Since(startTime).Seconds())
-
-	return ApplyResult{
-		State: state,
-	}, nil
+	return state, nil
 }
 
 func (h *helperImpl) toUnstructured(obj interface{}) (*unstructured.Unstructured, schema.GroupVersionKind, error) {

@@ -37,10 +37,10 @@ func (m *MockHelper) EXPECT() *MockHelperMockRecorder {
 }
 
 // Apply mocks base method.
-func (m *MockHelper) Apply(ctx context.Context, obj interface{}) (resource.ApplyResult, error) {
+func (m *MockHelper) Apply(ctx context.Context, obj interface{}) (resource.ApplyState, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Apply", ctx, obj)
-	ret0, _ := ret[0].(resource.ApplyResult)
+	ret0, _ := ret[0].(resource.ApplyState)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -52,10 +52,10 @@ func (mr *MockHelperMockRecorder) Apply(ctx, obj interface{}) *gomock.Call {
 }
 
 // Delete mocks base method.
-func (m *MockHelper) Delete(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string) (resource.DeleteResult, error) {
+func (m *MockHelper) Delete(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string) (resource.DeleteState, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Delete", ctx, gvk, namespace, name)
-	ret0, _ := ret[0].(resource.DeleteResult)
+	ret0, _ := ret[0].(resource.DeleteState)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -67,14 +67,14 @@ func (mr *MockHelperMockRecorder) Delete(ctx, gvk, namespace, name interface{}) 
 }
 
 // Patch mocks base method.
-func (m *MockHelper) Patch(ctx context.Context, obj interface{}, patch []byte, opts ...resource.PatchOption) (resource.PatchResult, error) {
+func (m *MockHelper) Patch(ctx context.Context, obj interface{}, patch []byte, opts ...resource.PatchOption) (resource.PatchState, error) {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{ctx, obj, patch}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Patch", varargs...)
-	ret0, _ := ret[0].(resource.PatchResult)
+	ret0, _ := ret[0].(resource.PatchState)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -87,14 +87,14 @@ func (mr *MockHelperMockRecorder) Patch(ctx, obj, patch interface{}, opts ...int
 }
 
 // PatchWithObject mocks base method.
-func (m *MockHelper) PatchWithObject(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, patch []byte, opts ...resource.PatchOption) (resource.PatchResult, error) {
+func (m *MockHelper) PatchWithObject(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, patch []byte, opts ...resource.PatchOption) (resource.PatchState, error) {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{ctx, gvk, namespace, name, patch}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "PatchWithObject", varargs...)
-	ret0, _ := ret[0].(resource.PatchResult)
+	ret0, _ := ret[0].(resource.PatchState)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

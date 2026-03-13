@@ -229,7 +229,7 @@ metadata:
 
 			// Verify success
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantState, result.State, "unexpected apply state")
+			assert.Equal(t, tt.wantState, result, "unexpected apply state")
 		})
 	}
 }
@@ -289,7 +289,7 @@ data:
 
 		result, err := helper.Apply(ctx, yamlData)
 		require.NoError(t, err)
-		assert.Equal(t, Created, result.State)
+		assert.Equal(t, Created, result)
 
 		// Field manager would be "hive-clustersync"
 		// We can't easily verify this with fake client, but the code path is tested
@@ -483,7 +483,7 @@ data:
 
 		result, err := helper.Apply(ctx, yamlData)
 		require.NoError(t, err)
-		assert.Equal(t, Created, result.State)
+		assert.Equal(t, Created, result)
 	})
 
 	t.Run("detects Configured state for existing resource", func(t *testing.T) {
@@ -515,7 +515,7 @@ data:
 
 		result, err := helper.Apply(ctx, yamlData)
 		require.NoError(t, err)
-		assert.Equal(t, Configured, result.State)
+		assert.Equal(t, Configured, result)
 	})
 }
 
@@ -584,7 +584,7 @@ data:
 
 		result, err := helper.Apply(ctx, yamlData)
 		require.NoError(t, err)
-		assert.Equal(t, Created, result.State)
+		assert.Equal(t, Created, result)
 
 		// Metrics recording is called internally
 		// We can't easily verify Prometheus metrics in unit tests

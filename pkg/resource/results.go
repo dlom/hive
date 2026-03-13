@@ -1,6 +1,5 @@
 package resource
 
-// ApplyState represents the state of a resource after an Apply operation.
 type ApplyState int
 
 const (
@@ -22,11 +21,6 @@ func (s ApplyState) String() string {
 	}
 }
 
-type ApplyResult struct {
-	State ApplyState
-}
-
-// PatchState represents the state of a resource after a Patch operation.
 type PatchState int
 
 const (
@@ -45,11 +39,6 @@ func (s PatchState) String() string {
 	}
 }
 
-type PatchResult struct {
-	State PatchState
-}
-
-// DeleteState represents the state of a resource after a Delete operation.
 type DeleteState int
 
 const (
@@ -69,8 +58,4 @@ func (s DeleteState) String() string {
 	default:
 		return "unknown"
 	}
-}
-
-type DeleteResult struct {
-	State DeleteState
 }

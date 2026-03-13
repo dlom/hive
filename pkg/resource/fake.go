@@ -20,41 +20,41 @@ func NewFakeHelper(logger log.FieldLogger) Helper {
 	}
 }
 
-func (h *fakeHelper) Apply(ctx context.Context, obj interface{}) (ApplyResult, error) {
+func (h *fakeHelper) Apply(ctx context.Context, obj interface{}) (ApplyState, error) {
 	select {
 	case <-ctx.Done():
-		return ApplyResult{}, ctx.Err()
+		return 0, ctx.Err()
 	default:
 	}
 
 	h.fakeApplySleep()
-	return ApplyResult{State: Configured}, nil
+	return Configured, nil
 }
 
-func (h *fakeHelper) Patch(ctx context.Context, obj interface{}, patch []byte, opts ...PatchOption) (PatchResult, error) {
+func (h *fakeHelper) Patch(ctx context.Context, obj interface{}, patch []byte, opts ...PatchOption) (PatchState, error) {
 	select {
 	case <-ctx.Done():
-		return PatchResult{}, ctx.Err()
+		return 0, ctx.Err()
 	default:
 	}
 
 	h.fakePatchSleep()
-	return PatchResult{State: Patched}, nil
+	return Patched, nil
 }
 
-func (h *fakeHelper) PatchWithObject(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, patch []byte, opts ...PatchOption) (PatchResult, error) {
+func (h *fakeHelper) PatchWithObject(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, patch []byte, opts ...PatchOption) (PatchState, error) {
 	return h.Patch(ctx, nil, patch, opts...)
 }
 
-func (h *fakeHelper) Delete(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string) (DeleteResult, error) {
+func (h *fakeHelper) Delete(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string) (DeleteState, error) {
 	select {
 	case <-ctx.Done():
-		return DeleteResult{}, ctx.Err()
+		return 0, ctx.Err()
 	default:
 	}
 
 	h.fakeDeleteSleep()
-	return DeleteResult{State: Deleted}, nil
+	return Deleted, nil
 }
 
 func (h *fakeHelper) fakeApplySleep() {

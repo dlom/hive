@@ -199,7 +199,7 @@ func TestHelper_Patch(t *testing.T) {
 
 			// Verify success
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantState, result.State, "unexpected patch state")
+			assert.Equal(t, tt.wantState, result, "unexpected patch state")
 		})
 	}
 }
@@ -273,7 +273,7 @@ func TestHelper_PatchWithObject(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantState, result.State)
+			assert.Equal(t, tt.wantState, result)
 		})
 	}
 }
@@ -312,7 +312,7 @@ func TestHelper_PatchFieldManager(t *testing.T) {
 
 		result, err := helper.Patch(ctx, obj, patch)
 		require.NoError(t, err)
-		assert.Equal(t, Patched, result.State)
+		assert.Equal(t, Patched, result)
 
 		// Field manager would be "hive-clustersync"
 		// Can't easily verify with fake client, but code path is tested
@@ -387,7 +387,7 @@ func TestHelper_PatchTypes(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			assert.Equal(t, Patched, result.State)
+			assert.Equal(t, Patched, result)
 		})
 	}
 }
@@ -555,7 +555,7 @@ func TestHelper_PatchMetricsRecording(t *testing.T) {
 
 		result, err := helper.Patch(ctx, obj, patch)
 		require.NoError(t, err)
-		assert.Equal(t, Patched, result.State)
+		assert.Equal(t, Patched, result)
 
 		// Metrics recording happens internally
 		// Integration tests would verify metrics collection

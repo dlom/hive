@@ -63,7 +63,7 @@ var (
 )
 
 type applier interface {
-	Apply(ctx context.Context, obj interface{}) (resource.ApplyResult, error)
+	Apply(ctx context.Context, obj interface{}) (resource.ApplyState, error)
 }
 
 // Add creates a new ControlPlaneCerts Controller and adds it to the Manager with default RBAC. The Manager will set fields on the Controller

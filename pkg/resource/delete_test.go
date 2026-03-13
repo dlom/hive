@@ -82,7 +82,7 @@ func TestHelper_Delete(t *testing.T) {
 
 			// Verify success
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantState, result.State, "unexpected delete state")
+			assert.Equal(t, tt.wantState, result, "unexpected delete state")
 		})
 	}
 }
@@ -116,7 +116,7 @@ func TestHelper_DeleteDeletionInProgress(t *testing.T) {
 
 		result, err := helper.Delete(ctx, gvk, "default", "finalizer-test")
 		require.NoError(t, err)
-		assert.Equal(t, DeletionInProgress, result.State)
+		assert.Equal(t, DeletionInProgress, result)
 	})
 }
 
@@ -145,13 +145,13 @@ func TestHelper_DeleteIdempotent(t *testing.T) {
 	t.Run("first delete succeeds", func(t *testing.T) {
 		result, err := helper.Delete(ctx, gvk, "default", "idempotent-test")
 		require.NoError(t, err)
-		assert.Equal(t, Deleted, result.State)
+		assert.Equal(t, Deleted, result)
 	})
 
 	t.Run("second delete returns NotFound", func(t *testing.T) {
 		result, err := helper.Delete(ctx, gvk, "default", "idempotent-test")
 		require.NoError(t, err)
-		assert.Equal(t, NotFound, result.State)
+		assert.Equal(t, NotFound, result)
 	})
 }
 
@@ -265,7 +265,7 @@ func TestHelper_DeleteStateSemanticsVsV1(t *testing.T) {
 		require.NoError(t, err)
 
 		// Explicitly returns DeletionInProgress (not ambiguous false)
-		assert.Equal(t, DeletionInProgress, result.State, "should return explicit DeletionInProgress state")
+		assert.Equal(t, DeletionInProgress, result, "should return explicit DeletionInProgress state")
 	})
 
 	t.Run("distinguishes NotFound from Deleted", func(t *testing.T) {
@@ -285,7 +285,7 @@ func TestHelper_DeleteStateSemanticsVsV1(t *testing.T) {
 		require.NoError(t, err)
 
 		// Explicitly returns NotFound (not Deleted)
-		assert.Equal(t, NotFound, result.State, "should distinguish NotFound from Deleted")
+		assert.Equal(t, NotFound, result, "should distinguish NotFound from Deleted")
 	})
 }
 
@@ -308,7 +308,7 @@ func TestHelper_DeleteErrorWrapping(t *testing.T) {
 		// This should succeed (NotFound state)
 		result, err := helper.Delete(ctx, gvk, "default", "test")
 		require.NoError(t, err)
-		assert.Equal(t, NotFound, result.State)
+		assert.Equal(t, NotFound, result)
 
 		// Error wrapping is tested in other error paths
 	})
@@ -339,7 +339,7 @@ func TestHelper_DeleteMetricsRecording(t *testing.T) {
 
 		result, err := helper.Delete(ctx, gvk, "default", "metrics-test")
 		require.NoError(t, err)
-		assert.Equal(t, Deleted, result.State)
+		assert.Equal(t, Deleted, result)
 
 		// Metrics recording happens internally
 		// Integration tests would verify metrics collection
@@ -359,7 +359,7 @@ func TestHelper_DeleteMetricsRecording(t *testing.T) {
 
 		result, err := helper.Delete(ctx, gvk, "default", "not-found")
 		require.NoError(t, err)
-		assert.Equal(t, NotFound, result.State)
+		assert.Equal(t, NotFound, result)
 
 		// Metrics should be recorded for NotFound too
 	})
@@ -388,7 +388,7 @@ func TestHelper_DeleteMetricsRecording(t *testing.T) {
 
 		result, err := helper.Delete(ctx, gvk, "default", "deletion-in-progress")
 		require.NoError(t, err)
-		assert.Equal(t, DeletionInProgress, result.State)
+		assert.Equal(t, DeletionInProgress, result)
 
 		// Metrics should be recorded for all states
 	})

@@ -12,7 +12,7 @@ import (
 	"github.com/openshift/hive/internal/clientutil"
 )
 
-func (h *helperImpl) Patch(ctx context.Context, obj interface{}, patch []byte, opts ...PatchOption) (PatchResult, error) {
+func (h *helperImpl) Patch(ctx context.Context, obj interface{}, patch []byte, opts ...PatchOption) (PatchState, error) {
 	startTime := time.Now()
 
 	options := patchOptions{
@@ -25,7 +25,7 @@ func (h *helperImpl) Patch(ctx context.Context, obj interface{}, patch []byte, o
 
 	unstructuredObj, gvk, err := h.toUnstructured(obj)
 	if err != nil {
-		return PatchResult{}, h.wrapError(err, "parse-object", gvk, "", "")
+		return 0, h.wrapError(err, "parse-object", gvk, "", "")
 	}
 
 	objectKey := client.ObjectKeyFromObject(unstructuredObj)
@@ -34,7 +34,7 @@ func (h *helperImpl) Patch(ctx context.Context, obj interface{}, patch []byte, o
 	existingObj.SetGroupVersionKind(gvk)
 	if err := h.client.Get(ctx, objectKey, existingObj); err != nil {
 		h.recordOperation("patch", gvk, "failure", time.Since(startTime).Seconds())
-		return PatchResult{}, h.wrapError(err, "get-before-patch", gvk, objectKey.Namespace, objectKey.Name)
+		return 0, h.wrapError(err, "get-before-patch", gvk, objectKey.Namespace, objectKey.Name)
 	}
 	existingResourceVersion := existingObj.GetResourceVersion()
 
@@ -47,8 +47,7 @@ func (h *helperImpl) Patch(ctx context.Context, obj interface{}, patch []byte, o
 	patchObj := client.RawPatch(options.patchType, patch)
 	if err := h.client.Patch(ctx, unstructuredObj, patchObj, patchOpts...); err != nil {
 		h.recordOperation("patch", gvk, "failure", time.Since(startTime).Seconds())
-
-		return PatchResult{}, h.wrapError(err, "patch", gvk, objectKey.Namespace, objectKey.Name)
+		return 0, h.wrapError(err, "patch", gvk, objectKey.Namespace, objectKey.Name)
 	}
 
 	h.recordOperation("patch", gvk, "success", time.Since(startTime).Seconds())
@@ -58,9 +57,7 @@ func (h *helperImpl) Patch(ctx context.Context, obj interface{}, patch []byte, o
 		state = PatchUnchanged
 	}
 
-	return PatchResult{
-		State: state,
-	}, nil
+	return state, nil
 }
 
 func (h *helperImpl) PatchWithObject(
@@ -69,7 +66,7 @@ func (h *helperImpl) PatchWithObject(
 	namespace, name string,
 	patch []byte,
 	opts ...PatchOption,
-) (PatchResult, error) {
+) (PatchState, error) {
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(gvk)
 	obj.SetNamespace(namespace)

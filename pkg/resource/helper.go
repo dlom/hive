@@ -19,16 +19,16 @@ import (
 type Helper interface {
 	// Apply applies the given resource using Server-Side Apply.
 	// Accepts []byte (YAML/JSON) or runtime.Object.
-	Apply(ctx context.Context, obj interface{}) (ApplyResult, error)
+	Apply(ctx context.Context, obj interface{}) (ApplyState, error)
 
 	// Patch patches a resource using the specified patch type.
-	Patch(ctx context.Context, obj interface{}, patch []byte, opts ...PatchOption) (PatchResult, error)
+	Patch(ctx context.Context, obj interface{}, patch []byte, opts ...PatchOption) (PatchState, error)
 
 	// PatchWithObject patches a resource by GVK, namespace, and name.
-	PatchWithObject(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, patch []byte, opts ...PatchOption) (PatchResult, error)
+	PatchWithObject(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string, patch []byte, opts ...PatchOption) (PatchState, error)
 
 	// Delete deletes a resource.
-	Delete(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string) (DeleteResult, error)
+	Delete(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string) (DeleteState, error)
 }
 
 // helperConfig holds the configuration for a Helper.

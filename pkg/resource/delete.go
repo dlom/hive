@@ -10,7 +10,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func (h *helperImpl) Delete(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string) (DeleteResult, error) {
+func (h *helperImpl) Delete(ctx context.Context, gvk schema.GroupVersionKind, namespace, name string) (DeleteState, error) {
 	startTime := time.Now()
 
 	obj := &unstructured.Unstructured{}
@@ -26,34 +26,26 @@ func (h *helperImpl) Delete(ctx context.Context, gvk schema.GroupVersionKind, na
 	if err := h.client.Get(ctx, objectKey, currentObj); err != nil {
 		if apierrors.IsNotFound(err) {
 			h.recordOperation("delete", gvk, "success", time.Since(startTime).Seconds())
-			return DeleteResult{
-				State: NotFound,
-			}, nil
+			return NotFound, nil
 		}
-		return DeleteResult{}, h.wrapError(err, "get-for-delete", gvk, namespace, name)
+		return 0, h.wrapError(err, "get-for-delete", gvk, namespace, name)
 	}
 
 	if currentObj.GetDeletionTimestamp() != nil {
 		h.recordOperation("delete", gvk, "deletion-in-progress", time.Since(startTime).Seconds())
-		return DeleteResult{
-			State: DeletionInProgress,
-		}, nil
+		return DeletionInProgress, nil
 	}
 
 	if err := h.client.Delete(ctx, obj); err != nil {
 		if apierrors.IsNotFound(err) {
 			h.recordOperation("delete", gvk, "success", time.Since(startTime).Seconds())
-			return DeleteResult{
-				State: Deleted,
-			}, nil
+			return Deleted, nil
 		}
 
 		h.recordOperation("delete", gvk, "failure", time.Since(startTime).Seconds())
-		return DeleteResult{}, h.wrapError(err, "delete", gvk, namespace, name)
+		return 0, h.wrapError(err, "delete", gvk, namespace, name)
 	}
 
 	h.recordOperation("delete", gvk, "success", time.Since(startTime).Seconds())
-	return DeleteResult{
-		State: Deleted,
-	}, nil
+	return Deleted, nil
 }

@@ -136,7 +136,7 @@ data:
 `)
 		result, err := helper.Apply(ctx, yamlData)
 		require.NoError(t, err)
-		assert.Equal(t, Created, result.State)
+		assert.Equal(t, Created, result)
 	})
 
 	t.Run("implements Patch method", func(t *testing.T) {
