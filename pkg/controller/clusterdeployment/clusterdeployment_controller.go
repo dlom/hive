@@ -2270,7 +2270,9 @@ func generateDeprovision(cd *hivev1.ClusterDeployment) (*hivev1.ClusterDeprovisi
 		req.Spec.MetadataJSONSecretRef = cd.Spec.ClusterMetadata.MetadataJSONSecretRef
 	}
 
-	controllerutils.CopyAnnotations(cd, req, constants.AdditionalLogFieldsAnnotation, constants.LegacyDeprovisionAnnotation)
+	req.Spec.InstallerImage = cd.Status.InstallerImage
+
+	controllerutils.CopyAnnotations(cd, req, constants.AdditionalLogFieldsAnnotation)
 
 	switch {
 	case cd.Spec.Platform.AWS != nil:

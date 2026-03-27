@@ -43,7 +43,6 @@ func newHiveutilCommand() *cobra.Command {
 			cmd.Usage()
 		},
 	}
-	cmd.AddCommand(deprovision.NewDeprovisionAWSWithTagsCommand())
 	cmd.AddCommand(deprovision.NewDeprovisionCommand())
 	cmd.AddCommand(verification.NewVerifyImportsCommand())
 	cmd.AddCommand(installmanager.NewInstallManagerCommand())

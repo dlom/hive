@@ -28,6 +28,11 @@ type ClusterDeprovisionSpec struct {
 	// installer, potentially scrubbed for sensitive data.
 	MetadataJSONSecretRef *corev1.LocalObjectReference `json:"metadataJSONSecretRef,omitempty"`
 
+	// InstallerImage is the installer image to use for running
+	// openshift-install destroy cluster during deprovisioning.
+	// +optional
+	InstallerImage *string `json:"installerImage,omitempty"`
+
 	// Platform contains platform-specific configuration for a ClusterDeprovision
 	Platform ClusterDeprovisionPlatform `json:"platform,omitempty"`
 }

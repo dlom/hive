@@ -40,9 +40,46 @@ func TestGenerateDeprovision(t *testing.T) {
 	hiveassert.AssertAllContainersHaveEnvVar(t, &job.Spec.Template.Spec, "HTTP_PROXY", testHttpProxy)
 	hiveassert.AssertAllContainersHaveEnvVar(t, &job.Spec.Template.Spec, "HTTPS_PROXY", testHttpsProxy)
 	hiveassert.AssertAllContainersHaveEnvVar(t, &job.Spec.Template.Spec, "NO_PROXY", testNoProxy)
+
+	// Verify init container copies hiveutil from the hive image (mirrors install path)
+	assert.Len(t, job.Spec.Template.Spec.InitContainers, 1, "expected exactly one init container")
+	assert.Equal(t, "hive", job.Spec.Template.Spec.InitContainers[0].Name)
+
+	// Verify main container uses the installer image and runs deprovision
+	assert.Len(t, job.Spec.Template.Spec.Containers, 1, "expected exactly one container")
+	assert.Equal(t, *dr.Spec.InstallerImage, job.Spec.Template.Spec.Containers[0].Image)
+	assert.Equal(t, []string{"/bin/sh", "-c"}, job.Spec.Template.Spec.Containers[0].Command)
+	assert.Contains(t, job.Spec.Template.Spec.Containers[0].Args[0], "deprovision")
+	assert.Contains(t, job.Spec.Template.Spec.Containers[0].Args[0], "--metadata-json-secret-name")
+	assert.Contains(t, job.Spec.Template.Spec.Containers[0].Args[0], "openshift-install")
+}
+
+func TestGenerateDeprovisionMissingInstallerImage(t *testing.T) {
+	dr := testClusterDeprovision()
+	dr.Spec.InstallerImage = nil
+	_, err := GenerateUninstallerJobForDeprovision(
+		dr, "sa",
+		"", "", "",
+		nil,
+		controllerutils.SharedPodConfig{}, log.StandardLogger())
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "InstallerImage is required")
+}
+
+func TestGenerateDeprovisionMissingMetadata(t *testing.T) {
+	dr := testClusterDeprovision()
+	dr.Spec.MetadataJSONSecretRef = nil
+	_, err := GenerateUninstallerJobForDeprovision(
+		dr, "sa",
+		"", "", "",
+		nil,
+		controllerutils.SharedPodConfig{}, log.StandardLogger())
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "MetadataJSONSecretRef is required")
 }
 
 func testClusterDeprovision() *hivev1.ClusterDeprovision {
+	img := "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:abc123"
 	return &hivev1.ClusterDeprovision{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
@@ -51,6 +88,10 @@ func testClusterDeprovision() *hivev1.ClusterDeprovision {
 		Spec: hivev1.ClusterDeprovisionSpec{
 			InfraID:   "test-infra-id",
 			ClusterID: "test-cluster-id",
+			MetadataJSONSecretRef: &corev1.LocalObjectReference{
+				Name: "foo-metadata",
+			},
+			InstallerImage: &img,
 			Platform: hivev1.ClusterDeprovisionPlatform{
 				AWS: &hivev1.AWSClusterDeprovision{
 					Region: "us-east-1",

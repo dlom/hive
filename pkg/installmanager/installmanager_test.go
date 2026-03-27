@@ -368,7 +368,7 @@ func testClusterDeployment() *hivev1.ClusterDeployment {
 	}
 }
 
-func alwaysSucceedCleanupFailedProvision(client.Client, *hivev1.ClusterDeployment, string, log.FieldLogger) error {
+func alwaysSucceedCleanupFailedProvision(*InstallManager, *hivev1.ClusterDeployment) error {
 	log.Debugf("running always successful uninstall")
 	return nil
 }
