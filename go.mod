@@ -81,7 +81,6 @@ require (
 	4d63.com/gocheckcompilerdirectives v1.3.0 // indirect
 	github.com/4meepo/tagalign v1.4.2 // indirect
 	github.com/Abirdcfly/dupword v0.1.3 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph v0.8.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0 // indirect
 	github.com/GaijinEntertainment/go-exhaustruct/v3 v3.3.1 // indirect
 	github.com/IBM-Cloud/power-go-client v1.12.0 // indirect
@@ -172,7 +171,6 @@ require (
 	github.com/Antonboom/errname v1.0.0 // indirect
 	github.com/Antonboom/testifylint v1.5.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5 v5.7.0 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v1.1.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v2 v2.2.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage v1.8.1 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
@@ -329,7 +327,6 @@ require (
 	github.com/metal3-io/baremetal-operator/pkg/hardwareutils v0.4.0 // indirect
 	github.com/mgechev/revive v1.7.0 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
-	github.com/microsoft/kiota-serialization-form-go v0.9.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
@@ -479,11 +476,6 @@ require (
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/microsoft/kiota-abstractions-go v0.18.0 // indirect
 	github.com/microsoft/kiota-authentication-azure-go v0.6.0 // indirect
-	github.com/microsoft/kiota-http-go v0.16.0 // indirect
-	github.com/microsoft/kiota-serialization-json-go v0.9.0 // indirect
-	github.com/microsoft/kiota-serialization-text-go v0.7.0 // indirect
-	github.com/microsoftgraph/msgraph-sdk-go v0.59.0 // indirect
-	github.com/microsoftgraph/msgraph-sdk-go-core v0.34.1 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/openshift/cluster-control-plane-machine-set-operator v0.0.0-20251029084908-344babe6a957

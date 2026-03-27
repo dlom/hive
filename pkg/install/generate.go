@@ -528,39 +528,28 @@ func GenerateUninstallerJobForDeprovision(
 		},
 	}
 
-	legacy, _ := strconv.ParseBool(req.Annotations[constants.LegacyDeprovisionAnnotation])
-	var args []string
-	if legacy {
-		rLog.
-			WithField(constants.LegacyDeprovisionAnnotation, req.Annotations[constants.LegacyDeprovisionAnnotation]).
-			Info("using legacy deprovision flow per annotation")
+	if req.Spec.InstallerImage == nil || *req.Spec.InstallerImage == "" {
+		return nil, errors.New("InstallerImage is required for deprovision")
 	}
 	if req.Spec.MetadataJSONSecretRef == nil || req.Spec.MetadataJSONSecretRef.Name == "" {
-		legacy = true
-		rLog.Info("using legacy deprovision due to missing metadata.json Secret reference")
-	}
-	if !legacy {
-		args = []string{
-			"deprovision",
-			"--metadata-json-secret-name", req.Spec.MetadataJSONSecretRef.Name,
-		}
+		return nil, errors.New("MetadataJSONSecretRef is required for deprovision")
 	}
 
 	switch {
 	case req.Spec.Platform.AWS != nil:
-		completeAWSDeprovisionJob(req, job, args)
+		completeAWSDeprovisionJob(req, job)
 	case req.Spec.Platform.Azure != nil:
-		completeAzureDeprovisionJob(req, job, args)
+		completeAzureDeprovisionJob(req, job)
 	case req.Spec.Platform.GCP != nil:
-		completeGCPDeprovisionJob(req, job, args)
+		completeGCPDeprovisionJob(req, job)
 	case req.Spec.Platform.OpenStack != nil:
-		completeOpenStackDeprovisionJob(req, job, args)
+		completeOpenStackDeprovisionJob(req, job)
 	case req.Spec.Platform.VSphere != nil:
-		completeVSphereDeprovisionJob(req, job, args)
+		completeVSphereDeprovisionJob(req, job)
 	case req.Spec.Platform.IBMCloud != nil:
-		completeIBMCloudDeprovisionJob(req, job, args)
+		completeIBMCloudDeprovisionJob(req, job)
 	case req.Spec.Platform.Nutanix != nil:
-		completeNutanixCloudDeprovisionJob(req, job, args)
+		completeNutanixCloudDeprovisionJob(req, job)
 	default:
 		return nil, errors.New("deprovision requests currently not supported for platform")
 	}
@@ -666,7 +655,63 @@ func envAndVolumes(ns, credsVolName, credsDir, credsName, certsVolName, certsDir
 	return env, volumes, volumeMounts
 }
 
-func completeAWSDeprovisionJob(req *hivev1.ClusterDeprovision, job *batchv1.Job, args []string) {
+// completeDeprovisionJob sets up the common job structure for all platforms, mirroring
+// the install path: an init container copies hiveutil from the hive image, and the main
+// container (using the installer image) copies openshift-install then runs hiveutil
+// deprovision, which configures credentials and execs openshift-install destroy cluster.
+func completeDeprovisionJob(req *hivev1.ClusterDeprovision, job *batchv1.Job, env []corev1.EnvVar, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount) {
+	// Add /output EmptyDir — shared between init and main containers
+	volumes = append(volumes, corev1.Volume{
+		Name: "output",
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	})
+	volumeMounts = append(volumeMounts, corev1.VolumeMount{
+		Name:      "output",
+		MountPath: "/output",
+	})
+
+	// Init container: copy hiveutil from the hive image (same as install path)
+	job.Spec.Template.Spec.InitContainers = []corev1.Container{
+		{
+			Name:            "hive",
+			Image:           images.GetHiveImage(),
+			ImagePullPolicy: corev1.PullAlways,
+			Env:             env,
+			Command:         []string{"/bin/sh", "-c"},
+			Args:            []string{"cp -v /usr/bin/hiveutil.rhel8 /output/hiveutil8.tmp && mv -v /output/hiveutil8.tmp /output/hiveutil.rhel8 && cp -v /usr/bin/hiveutil /output/hiveutil9.tmp && mv -v /output/hiveutil9.tmp /output/hiveutil.rhel9"},
+			VolumeMounts:    volumeMounts,
+		},
+	}
+
+	// Main container: installer image copies openshift-install, symlinks the correct
+	// hiveutil for the RHEL version, then runs hiveutil deprovision.
+	// This mirrors the install path structure exactly.
+	job.Spec.Template.Spec.Containers = []corev1.Container{
+		{
+			Name:            "deprovision",
+			Image:           *req.Spec.InstallerImage,
+			ImagePullPolicy: corev1.PullIfNotPresent,
+			Env:             env,
+			Command:         []string{"/bin/sh", "-c"},
+			Args: []string{fmt.Sprintf(
+				"cp /bin/openshift-install /output/openshift-install.tmp && mv /output/openshift-install.tmp /output/openshift-install"+
+					" && major_version=$(sed -n 's/.*release \\([0-9]*\\).*/\\1/p' /etc/redhat-release)"+
+					" && ln -s /output/hiveutil.rhel${major_version} /output/hiveutil"+
+					" && /output/hiveutil deprovision"+
+					" --metadata-json-secret-name %s"+
+					" --dir /output"+
+					" --installer-binary /output/openshift-install",
+				req.Spec.MetadataJSONSecretRef.Name,
+			)},
+			VolumeMounts: volumeMounts,
+		},
+	}
+	job.Spec.Template.Spec.Volumes = volumes
+}
+
+func completeAWSDeprovisionJob(req *hivev1.ClusterDeprovision, job *batchv1.Job) {
 	credentialRef := req.Spec.Platform.AWS.CredentialsSecretRef.Name
 	if credentialRef == "" {
 		credentialRef = AWSAssumeRoleSecretName(req.Name)
@@ -675,301 +720,57 @@ func completeAWSDeprovisionJob(req *hivev1.ClusterDeprovision, job *batchv1.Job,
 		req.Namespace,
 		"aws-creds", constants.AWSCredsMount, credentialRef,
 		"", "", "")
-
-	// empty args implies legacy deprovision
-	legacy := len(args) == 0
-	if legacy {
-		hostedZoneRole := ""
-		if req.Spec.Platform.AWS.HostedZoneRole != nil {
-			hostedZoneRole = *req.Spec.Platform.AWS.HostedZoneRole
-		}
-		args = []string{
-			"aws-tag-deprovision",
-			"--region", req.Spec.Platform.AWS.Region,
-			"--hosted-zone-role", hostedZoneRole,
-		}
-		// BaseDomain should always be set in new code. This conditional is only in case we're
-		// reconciling an old ClusterDeprovision created before we added the cluster-domain arg. Such
-		// deprovisions will leak DNS entries if they came from shared-VPC clusters.
-		if req.Spec.BaseDomain != "" {
-			args = append(args, "--cluster-domain", req.Spec.ClusterName+"."+req.Spec.BaseDomain)
-		}
-
-	}
-	args = append(args,
-		"--creds-dir", constants.AWSCredsMount,
-		"--loglevel", "debug",
-	)
-	if legacy {
-		args = append(
-			args,
-			fmt.Sprintf("kubernetes.io/cluster/%s=owned", req.Spec.InfraID),
-			fmt.Sprintf("sigs.k8s.io/cluster-api-provider-aws/cluster/%s=owned", req.Spec.InfraID),
-		)
-	}
-
-	// Set up /output emptydir and copy hiveutil there for credential_process compatibility with provisioning
-	volumes = append(volumes, corev1.Volume{
-		Name: "output",
-		VolumeSource: corev1.VolumeSource{
-			EmptyDir: &corev1.EmptyDirVolumeSource{},
-		},
-	})
-	mounts = append(mounts, corev1.VolumeMount{
-		Name:      "output",
-		MountPath: "/output",
-	})
-
-	initContainers := []corev1.Container{
-		{
-			Name:            "hive",
-			Image:           images.GetHiveImage(),
-			ImagePullPolicy: corev1.PullAlways,
-			Env:             env,
-			Command:         []string{"/bin/sh", "-c"},
-			Args:            []string{"cp /usr/bin/hiveutil /output/hiveutil.tmp && mv /output/hiveutil.tmp /output/hiveutil"},
-			VolumeMounts:    mounts,
-		},
-	}
-
-	containers := []corev1.Container{
-		{
-			Name:            "deprovision",
-			Image:           images.GetHiveImage(),
-			ImagePullPolicy: images.GetHiveImagePullPolicy(),
-			Env:             env,
-			Command:         []string{"/usr/bin/hiveutil"},
-			Args:            args,
-			VolumeMounts:    mounts,
-		},
-	}
-	if len(req.Spec.ClusterID) > 0 {
-		// Also cleanup anything with the tag for the legacy cluster ID (credentials still using this for example)
-		containers[0].Args = append(containers[0].Args, fmt.Sprintf("openshiftClusterID=%s", req.Spec.ClusterID))
-	}
-	job.Spec.Template.Spec.InitContainers = initContainers
-	job.Spec.Template.Spec.Containers = containers
-	job.Spec.Template.Spec.Volumes = volumes
+	completeDeprovisionJob(req, job, env, volumes, mounts)
 }
 
-func completeAzureDeprovisionJob(req *hivev1.ClusterDeprovision, job *batchv1.Job, args []string) {
-	env, volumes, volumeMounts := envAndVolumes(
+func completeAzureDeprovisionJob(req *hivev1.ClusterDeprovision, job *batchv1.Job) {
+	env, volumes, mounts := envAndVolumes(
 		req.Namespace,
 		"azure", constants.AzureCredentialsDir, req.Spec.Platform.Azure.CredentialsSecretRef.Name,
 		"", "", "")
-
-	// empty args implies legacy deprovision
-	legacy := len(args) == 0
-	if legacy {
-		args = []string{
-			"deprovision", "azure",
-		}
-	}
-	args = append(args,
-		"--loglevel", "debug",
-		"--creds-dir", constants.AzureCredentialsDir,
-	)
-	// TODO: Figure out if positional vs opt arg order matters. If not, consolidate this with the
-	// first `if legacy` above.
-	if legacy {
-		args = append(args, req.Spec.InfraID)
-		if req.Spec.Platform.Azure.CloudName != nil {
-			args = append(args, "--azure-cloud-name", req.Spec.Platform.Azure.CloudName.Name())
-		}
-		if req.Spec.Platform.Azure.ResourceGroupName != nil {
-			args = append(args, "--azure-resource-group-name", *req.Spec.Platform.Azure.ResourceGroupName)
-		}
-		if req.Spec.Platform.Azure.BaseDomainResourceGroupName != nil {
-			args = append(args, "--azure-base-domain-resource-group-name", *req.Spec.Platform.Azure.BaseDomainResourceGroupName)
-		}
-	}
-	containers := []corev1.Container{
-		{
-			Name:            "deprovision",
-			Image:           images.GetHiveImage(),
-			ImagePullPolicy: images.GetHiveImagePullPolicy(),
-			Env:             env,
-			Command:         []string{"/usr/bin/hiveutil"},
-			Args:            args,
-			VolumeMounts:    volumeMounts,
-		},
-	}
-	job.Spec.Template.Spec.Containers = containers
-	job.Spec.Template.Spec.Volumes = volumes
-
+	completeDeprovisionJob(req, job, env, volumes, mounts)
 }
 
-func completeGCPDeprovisionJob(req *hivev1.ClusterDeprovision, job *batchv1.Job, args []string) {
-	env, volumes, volumeMounts := envAndVolumes(
+func completeGCPDeprovisionJob(req *hivev1.ClusterDeprovision, job *batchv1.Job) {
+	env, volumes, mounts := envAndVolumes(
 		req.Namespace,
 		"gcp", constants.GCPCredentialsDir, req.Spec.Platform.GCP.CredentialsSecretRef.Name,
 		"", "", "")
-
-	// empty args implies legacy deprovision
-	legacy := len(args) == 0
-	if legacy {
-		npid := ""
-		if req.Spec.Platform.GCP.NetworkProjectID != nil {
-			npid = *req.Spec.Platform.GCP.NetworkProjectID
-		}
-		args = []string{
-			"deprovision", "gcp",
-			"--region", req.Spec.Platform.GCP.Region,
-			"--network-project-id", npid,
-		}
-	}
-	args = append(args,
-		"--loglevel", "debug",
-		"--creds-dir", constants.GCPCredentialsDir,
-	)
-	if legacy {
-		args = append(args, req.Spec.InfraID)
-	}
-	job.Spec.Template.Spec.Containers = []corev1.Container{
-		{
-			Name:            "deprovision",
-			Image:           images.GetHiveImage(),
-			ImagePullPolicy: images.GetHiveImagePullPolicy(),
-			Env:             env,
-			Command:         []string{"/usr/bin/hiveutil"},
-			Args:            args,
-			VolumeMounts:    volumeMounts,
-		},
-	}
-	job.Spec.Template.Spec.Volumes = volumes
+	completeDeprovisionJob(req, job, env, volumes, mounts)
 }
 
-func completeOpenStackDeprovisionJob(req *hivev1.ClusterDeprovision, job *batchv1.Job, args []string) {
+func completeOpenStackDeprovisionJob(req *hivev1.ClusterDeprovision, job *batchv1.Job) {
 	certRef := ""
 	if req.Spec.Platform.OpenStack.CertificatesSecretRef != nil {
-		// Can theoretically still be "", but that's okay.
 		certRef = req.Spec.Platform.OpenStack.CertificatesSecretRef.Name
 	}
-	env, volumes, volumeMounts := envAndVolumes(
+	env, volumes, mounts := envAndVolumes(
 		req.Namespace,
 		"openstack", constants.OpenStackCredentialsDir, req.Spec.Platform.OpenStack.CredentialsSecretRef.Name,
 		"openstack-certificates", constants.OpenStackCertificatesDir, certRef)
-	cmd := []string{"/usr/bin/hiveutil"}
-
-	// empty args implies legacy deprovision
-	legacy := len(args) == 0
-	if legacy {
-		args = []string{
-			"deprovision", "openstack",
-			"--cloud", req.Spec.Platform.OpenStack.Cloud,
-		}
-	}
-	args = append(args,
-		"--loglevel", "debug",
-		"--creds-dir", constants.OpenStackCredentialsDir,
-	)
-	if legacy {
-		args = append(args, req.Spec.InfraID)
-	}
-	job.Spec.Template.Spec.Containers = []corev1.Container{
-		{
-			Name:            "deprovision",
-			Image:           images.GetHiveImage(),
-			ImagePullPolicy: images.GetHiveImagePullPolicy(),
-			Env:             env,
-			Command:         cmd,
-			Args:            args,
-			VolumeMounts:    volumeMounts,
-		},
-	}
-	job.Spec.Template.Spec.Volumes = volumes
+	completeDeprovisionJob(req, job, env, volumes, mounts)
 }
 
-func completeVSphereDeprovisionJob(req *hivev1.ClusterDeprovision, job *batchv1.Job, args []string) {
-	env, volumes, volumeMounts := envAndVolumes(
+func completeVSphereDeprovisionJob(req *hivev1.ClusterDeprovision, job *batchv1.Job) {
+	env, volumes, mounts := envAndVolumes(
 		req.Namespace,
 		"vsphere-creds", constants.VSphereCredentialsDir, req.Spec.Platform.VSphere.CredentialsSecretRef.Name,
 		"vsphere-certificates", constants.VSphereCertificatesDir, req.Spec.Platform.VSphere.CertificatesSecretRef.Name)
-
-	// empty args implies legacy deprovision
-	legacy := len(args) == 0
-	if legacy {
-		args = []string{
-			"deprovision", "vsphere",
-			"--vsphere-vcenter", req.Spec.Platform.VSphere.VCenter,
-		}
-	}
-	args = append(args,
-		"--loglevel", "debug",
-		"--creds-dir", constants.VSphereCredentialsDir,
-	)
-	if legacy {
-		args = append(args, req.Spec.InfraID)
-	}
-	job.Spec.Template.Spec.Containers = []corev1.Container{
-		{
-			Name:            "deprovision",
-			Image:           images.GetHiveImage(),
-			ImagePullPolicy: images.GetHiveImagePullPolicy(),
-			Env:             env,
-			Command:         []string{"/usr/bin/hiveutil"},
-			Args:            args,
-			VolumeMounts:    volumeMounts,
-		},
-	}
-	job.Spec.Template.Spec.Volumes = volumes
+	completeDeprovisionJob(req, job, env, volumes, mounts)
 }
 
-func completeIBMCloudDeprovisionJob(req *hivev1.ClusterDeprovision, job *batchv1.Job, args []string) {
-	env, _, _ := envAndVolumes(
+func completeIBMCloudDeprovisionJob(req *hivev1.ClusterDeprovision, job *batchv1.Job) {
+	env, volumes, mounts := envAndVolumes(
 		req.Namespace,
 		"", "", req.Spec.Platform.IBMCloud.CredentialsSecretRef.Name,
 		"", "", "")
-
-	// empty args implies legacy deprovision
-	if len(args) == 0 {
-		args = []string{
-			"deprovision", "ibmcloud",
-			req.Spec.InfraID,
-			"--region", req.Spec.Platform.IBMCloud.Region,
-			"--base-domain", req.Spec.Platform.IBMCloud.BaseDomain,
-			"--cluster-name", req.Spec.ClusterName,
-		}
-	}
-	args = append(args, "--loglevel", "debug")
-	job.Spec.Template.Spec.Containers = []corev1.Container{
-		{
-			Name:            "deprovision",
-			Image:           images.GetHiveImage(),
-			ImagePullPolicy: images.GetHiveImagePullPolicy(),
-			Env:             env,
-			Command:         []string{"/usr/bin/hiveutil"},
-			Args:            args,
-		},
-	}
+	completeDeprovisionJob(req, job, env, volumes, mounts)
 }
 
-func completeNutanixCloudDeprovisionJob(req *hivev1.ClusterDeprovision, job *batchv1.Job, args []string) {
-	env, volumes, volumeMounts := envAndVolumes(
+func completeNutanixCloudDeprovisionJob(req *hivev1.ClusterDeprovision, job *batchv1.Job) {
+	env, volumes, mounts := envAndVolumes(
 		req.Namespace,
 		"nutanix-creds", "", req.Spec.Platform.Nutanix.CredentialsSecretRef.Name,
 		"nutanix-certificates", constants.NutanixCertificatesDir, req.Spec.Platform.Nutanix.CertificatesSecretRef.Name)
-
-	// empty args implies legacy deprovision
-	if len(args) == 0 {
-		args = []string{
-			"deprovision", "nutanix",
-			req.Spec.InfraID,
-			"--nutanix-pc-address", req.Spec.Platform.Nutanix.PrismCentral.Address,
-			"--nutanix-pc-port", strconv.Itoa(int(req.Spec.Platform.Nutanix.PrismCentral.Port)),
-		}
-	}
-	args = append(args, "--loglevel", "debug")
-	job.Spec.Template.Spec.Containers = []corev1.Container{
-		{
-			Name:            "deprovision",
-			Image:           images.GetHiveImage(),
-			ImagePullPolicy: images.GetHiveImagePullPolicy(),
-			Env:             env,
-			Command:         []string{"/usr/bin/hiveutil"},
-			Args:            args,
-			VolumeMounts:    volumeMounts,
-		},
-	}
-	job.Spec.Template.Spec.Volumes = volumes
+	completeDeprovisionJob(req, job, env, volumes, mounts)
 }

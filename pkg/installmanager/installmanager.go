@@ -41,22 +41,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
-	"github.com/openshift/installer/pkg/destroy/aws"
-	"github.com/openshift/installer/pkg/destroy/azure"
-	"github.com/openshift/installer/pkg/destroy/gcp"
-	"github.com/openshift/installer/pkg/destroy/ibmcloud"
-	"github.com/openshift/installer/pkg/destroy/nutanix"
-	"github.com/openshift/installer/pkg/destroy/openstack"
-	"github.com/openshift/installer/pkg/destroy/providers"
-	"github.com/openshift/installer/pkg/destroy/vsphere"
 	installertypes "github.com/openshift/installer/pkg/types"
-	installertypesaws "github.com/openshift/installer/pkg/types/aws"
-	installertypesazure "github.com/openshift/installer/pkg/types/azure"
-	installertypesgcp "github.com/openshift/installer/pkg/types/gcp"
-	installertypesibmcloud "github.com/openshift/installer/pkg/types/ibmcloud"
-	installertypesnutanix "github.com/openshift/installer/pkg/types/nutanix"
-	installertypesopenstack "github.com/openshift/installer/pkg/types/openstack"
-	installertypesvsphere "github.com/openshift/installer/pkg/types/vsphere"
 
 	jsoniter "github.com/json-iterator/go"
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
@@ -66,8 +51,6 @@ import (
 	"github.com/openshift/hive/pkg/controller/machinepool"
 	"github.com/openshift/hive/pkg/controller/utils"
 	"github.com/openshift/hive/pkg/creds"
-	"github.com/openshift/hive/pkg/gcpclient"
-	"github.com/openshift/hive/pkg/ibmclient"
 	"github.com/openshift/hive/pkg/resource"
 	k8slabels "github.com/openshift/hive/pkg/util/labels"
 	"github.com/openshift/hive/pkg/util/scheme"
@@ -80,8 +63,6 @@ const (
 	metadataRelativePath                = "metadata.json"
 	adminKubeConfigRelativePath         = "auth/kubeconfig"
 	adminPasswordRelativePath           = "auth/kubeadmin-password"
-	kubernetesKeyPrefix                 = "kubernetes.io/cluster/"
-	capaKeyPrefix                       = "sigs.k8s.io/cluster-api-provider-aws/cluster/"
 	kubeadminUsername                   = "kubeadmin"
 	adminKubeConfigSecretStringTemplate = "%s-admin-kubeconfig"
 	adminPasswordSecretStringTemplate   = "%s-admin-password"
@@ -121,7 +102,7 @@ type InstallManager struct {
 	ManifestsMountPath               string
 	DynamicClient                    client.Client
 	loadSecrets                      func(*InstallManager, *hivev1.ClusterDeployment)
-	cleanupFailedProvision           func(dynamicClient client.Client, cd *hivev1.ClusterDeployment, infraID string, logger log.FieldLogger) error
+	cleanupFailedProvision           func(*InstallManager, *hivev1.ClusterDeployment) error
 	updateClusterProvision           func(*InstallManager, provisionMutation) error
 	readClusterMetadata              func(*InstallManager) ([]byte, *installertypes.ClusterMetadata, error)
 	uploadAdminKubeconfig            func(*InstallManager) (*corev1.Secret, error)
@@ -364,7 +345,7 @@ func (m *InstallManager) Run() error {
 	// cluster provision attempt. Cleanup any resources that may have been provisioned.
 	if m.ClusterProvision.Spec.PrevInfraID != nil {
 		m.log.Info("cleaning up resources from previous provision attempt")
-		if err := m.cleanupFailedInstall(cd, *m.ClusterProvision.Spec.PrevInfraID, *m.ClusterProvision.Spec.PrevProvisionName, m.Namespace); err != nil {
+		if err := m.cleanupFailedInstall(cd, *m.ClusterProvision.Spec.PrevProvisionName, m.Namespace); err != nil {
 			m.log.WithError(err).Error("error while trying to preemptively clean up")
 			return err
 		}
@@ -381,7 +362,7 @@ func (m *InstallManager) Run() error {
 		// because install log is not generated until we run installer binary. We do
 		// have the option of faking an install log that can then be regexed.
 		m.log.Error("infraID is already set on the ClusterProvision. Unexpected install pod restart detected. Cleaning up resources from previous install attempt")
-		if err := m.cleanupFailedInstall(cd, *m.ClusterProvision.Spec.InfraID, m.ClusterProvisionName, m.Namespace); err != nil {
+		if err := m.cleanupFailedInstall(cd, m.ClusterProvisionName, m.Namespace); err != nil {
 			m.log.WithError(err).Error("error while trying to preemptively clean up")
 			return err
 		}
@@ -634,8 +615,8 @@ func (m *InstallManager) copyFile(src, dst string) error {
 }
 
 // cleanupFailedInstall allows recovering from an installation error and allows retries
-func (m *InstallManager) cleanupFailedInstall(cd *hivev1.ClusterDeployment, infraID, provisionName, provisionNamespace string) error {
-	if err := m.cleanupFailedProvision(m.DynamicClient, cd, infraID, m.log); err != nil {
+func (m *InstallManager) cleanupFailedInstall(cd *hivev1.ClusterDeployment, provisionName, provisionNamespace string) error {
+	if err := m.cleanupFailedProvision(m, cd); err != nil {
 		return err
 	}
 
@@ -650,183 +631,12 @@ func (m *InstallManager) cleanupFailedInstall(cd *hivev1.ClusterDeployment, infr
 	return nil
 }
 
-func cleanupFailedProvision(dynClient client.Client, cd *hivev1.ClusterDeployment, infraID string, logger log.FieldLogger) error {
-	var uninstaller providers.Destroyer
-
-	logger.Info("starting a cleanup failed provision for ClusterDeployment with infraID: ", infraID)
-	switch {
-	case cd.Spec.Platform.AWS != nil:
-		metadata := &installertypes.ClusterMetadata{
-			InfraID: infraID,
-			ClusterPlatformMetadata: installertypes.ClusterPlatformMetadata{
-				AWS: &installertypesaws.Metadata{
-					Region: cd.Spec.Platform.AWS.Region,
-					Identifier: []map[string]string{
-						{kubernetesKeyPrefix + infraID: "owned"},
-						{capaKeyPrefix + infraID: "owned"},
-					},
-				},
-			},
-		}
-		var err error
-		uninstaller, err = aws.New(logger, metadata)
-		if err != nil {
-			return err
-		}
-	case cd.Spec.Platform.Azure != nil:
-		cloudName := installertypesazure.PublicCloud.Name()
-		if cd.Spec.Platform.Azure.CloudName != "" {
-			cloudName = cd.Spec.Platform.Azure.CloudName.Name()
-		}
-		metadata := &installertypes.ClusterMetadata{
-			InfraID: infraID,
-			ClusterPlatformMetadata: installertypes.ClusterPlatformMetadata{
-				Azure: &installertypesazure.Metadata{
-					CloudName: installertypesazure.CloudEnvironment(cloudName),
-				},
-			},
-		}
-		var err error
-		uninstaller, err = azure.New(logger, metadata)
-		if err != nil {
-			return err
-		}
-	case cd.Spec.Platform.GCP != nil:
-		credsFile := os.Getenv("GOOGLE_CREDENTIALS")
-		projectID, err := gcpclient.ProjectIDFromFile(credsFile)
-		if err != nil {
-			return errors.Wrap(err, "could not get GCP project ID")
-		}
-		metadata := &installertypes.ClusterMetadata{
-			InfraID: infraID,
-			ClusterPlatformMetadata: installertypes.ClusterPlatformMetadata{
-				GCP: &installertypesgcp.Metadata{
-					Region:    cd.Spec.Platform.GCP.Region,
-					ProjectID: projectID,
-				},
-			},
-		}
-		uninstaller, err = gcp.New(logger, metadata)
-		if err != nil {
-			return err
-		}
-	case cd.Spec.Platform.OpenStack != nil:
-		metadata := &installertypes.ClusterMetadata{
-			InfraID: infraID,
-			ClusterPlatformMetadata: installertypes.ClusterPlatformMetadata{
-				OpenStack: &installertypesopenstack.Metadata{
-					Cloud: cd.Spec.Platform.OpenStack.Cloud,
-					Identifier: map[string]string{
-						"openshiftClusterID": infraID,
-					},
-				},
-			},
-		}
-		var err error
-		uninstaller, err = openstack.New(logger, metadata)
-		if err != nil {
-			return err
-		}
-	case cd.Spec.Platform.VSphere != nil:
-		vSphereUsername := os.Getenv(constants.VSphereUsernameEnvVar)
-		if vSphereUsername == "" {
-			return fmt.Errorf("no %s env var set, cannot proceed", constants.VSphereUsernameEnvVar)
-		}
-		vSpherePassword := os.Getenv(constants.VSpherePasswordEnvVar)
-		if vSpherePassword == "" {
-			return fmt.Errorf("no %s env var set, cannot proceed", constants.VSpherePasswordEnvVar)
-		}
-		metadata := &installertypes.ClusterMetadata{
-			InfraID: infraID,
-			ClusterPlatformMetadata: installertypes.ClusterPlatformMetadata{
-				VSphere: &installertypesvsphere.Metadata{
-					VCenter:  cd.Spec.Platform.VSphere.VCenter,
-					Username: vSphereUsername,
-					Password: vSpherePassword,
-				},
-			},
-		}
-		var err error
-		uninstaller, err = vsphere.New(logger, metadata)
-		if err != nil {
-			return err
-		}
-	case cd.Spec.Platform.IBMCloud != nil:
-		// Create IBMCloud Client
-		ibmCloudAPIKey := os.Getenv(constants.IBMCloudAPIKeyEnvVar)
-		if ibmCloudAPIKey == "" {
-			return fmt.Errorf("no %s env var set, cannot proceed", constants.IBMCloudAPIKeyEnvVar)
-		}
-		ibmClient, err := ibmclient.NewClient(ibmCloudAPIKey)
-		if err != nil {
-			return errors.Wrap(err, "Unable to create IBM Cloud client")
-		}
-		// Retrieve CISInstanceCRN
-		cisInstanceCRN, err := ibmclient.GetCISInstanceCRN(ibmClient, context.TODO(), cd.Spec.BaseDomain)
-		if err != nil {
-			return err
-		}
-		// Retrieve AccountID
-		accountID, err := ibmclient.GetAccountID(ibmClient, context.TODO())
-		if err != nil {
-			return err
-		}
-		metadata := &installertypes.ClusterMetadata{
-			InfraID:     infraID,
-			ClusterName: cd.Spec.ClusterName,
-			ClusterPlatformMetadata: installertypes.ClusterPlatformMetadata{
-				IBMCloud: &installertypesibmcloud.Metadata{
-					AccountID:         accountID,
-					BaseDomain:        cd.Spec.BaseDomain,
-					CISInstanceCRN:    cisInstanceCRN,
-					Region:            cd.Spec.Platform.IBMCloud.Region,
-					ResourceGroupName: cd.Spec.ClusterMetadata.InfraID,
-				},
-			},
-		}
-		var ibmCloudDestroyerErr error
-		uninstaller, ibmCloudDestroyerErr = ibmcloud.New(logger, metadata)
-		if ibmCloudDestroyerErr != nil {
-			return ibmCloudDestroyerErr
-		}
-	case cd.Spec.Platform.Nutanix != nil:
-		nutanixUsername := os.Getenv(constants.NutanixUsernameEnvVar)
-		if nutanixUsername == "" {
-			return fmt.Errorf("no %s env var set, cannot proceed", constants.NutanixUsernameEnvVar)
-		}
-		nutanixPassword := os.Getenv(constants.NutanixPasswordEnvVar)
-		if nutanixPassword == "" {
-			return fmt.Errorf("no %s env var set, cannot proceed", constants.NutanixPasswordEnvVar)
-		}
-
-		metadata := &installertypes.ClusterMetadata{
-			InfraID: infraID,
-			ClusterPlatformMetadata: installertypes.ClusterPlatformMetadata{
-				Nutanix: &installertypesnutanix.Metadata{
-					PrismCentral: cd.Spec.Platform.Nutanix.PrismCentral.Address,
-					Username:     nutanixUsername,
-					Password:     nutanixPassword,
-					Port:         strconv.Itoa(int(cd.Spec.Platform.Nutanix.PrismCentral.Port)),
-				},
-			},
-		}
-		var err error
-		uninstaller, err = nutanix.New(logger, metadata)
-		if err != nil {
-			return err
-		}
-
-	default:
-		logger.Warn("unknown platform for re-try cleanup")
-		return errors.New("unknown platform for re-try cleanup")
+func cleanupFailedProvision(m *InstallManager, cd *hivev1.ClusterDeployment) error {
+	m.log.Info("cleaning up failed provision using openshift-install destroy cluster")
+	if err := m.runOpenShiftInstallCommand("destroy", "cluster"); err != nil {
+		return errors.Wrap(err, "openshift-install destroy cluster failed")
 	}
-
-	// ClusterQuota stomped in return
-	if _, err := uninstaller.Run(); err != nil {
-		return err
-	}
-
-	return cleanupDNSZone(dynClient, cd, logger)
+	return cleanupDNSZone(m.DynamicClient, cd, m.log)
 }
 
 // generateAssets runs openshift-install commands to generate on-disk assets we need to

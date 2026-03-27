@@ -328,6 +328,7 @@ func TestClusterDeprovisionReconcile(t *testing.T) {
 }
 
 func testClusterDeprovision() *hivev1.ClusterDeprovision {
+	img := "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:abc123"
 	return &hivev1.ClusterDeprovision{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testName,
@@ -336,6 +337,10 @@ func testClusterDeprovision() *hivev1.ClusterDeprovision {
 		Spec: hivev1.ClusterDeprovisionSpec{
 			InfraID:   "test-infra-id",
 			ClusterID: "test-cluster-id",
+			MetadataJSONSecretRef: &corev1.LocalObjectReference{
+				Name: testName + "-metadata",
+			},
+			InstallerImage: &img,
 			Platform: hivev1.ClusterDeprovisionPlatform{
 				AWS: &hivev1.AWSClusterDeprovision{
 					Region: "us-east-1",
