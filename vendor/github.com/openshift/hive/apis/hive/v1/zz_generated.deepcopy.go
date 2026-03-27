@@ -1103,6 +1103,11 @@ func (in *ClusterDeprovisionSpec) DeepCopyInto(out *ClusterDeprovisionSpec) {
 		*out = new(corev1.LocalObjectReference)
 		**out = **in
 	}
+	if in.InstallerImage != nil {
+		in, out := &in.InstallerImage, &out.InstallerImage
+		*out = new(string)
+		**out = **in
+	}
 	in.Platform.DeepCopyInto(&out.Platform)
 	return
 }
